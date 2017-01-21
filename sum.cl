@@ -1,5 +1,5 @@
-__kernel void sum(__global const float *a, __global const float *b, __global float *c)
+__kernel void sum(__global const float *vec_1, __global const float *vec_2, __global float *vec_out)
     {
       int gid = get_global_id(0);
-      c[gid] = a[gid] + b[gid];
+      cvec_out[gid] = vec_1[gid] + vec_2[gid];
     }

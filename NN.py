@@ -6,14 +6,20 @@ import os
 
 
 
+# Debug properties
 DEBUG = True
-target_opencl_device_type = cl.device_type.GPU
 
+# OpenCL properties
+target_opencl_device_type = cl.device_type.GPU
+opencl_device_list = []
 
 # Network size properties
 input_size = 3
 hidden_size = 3
 output_size = 3
+
+# Neuron Properties
+neuron_fire_thresh = 0.5
 
 # Network storage variables
 # Data structure for hidden, each Row is a hidden neuron
@@ -21,30 +27,27 @@ network_input = []
 network_hidden = []
 network_output = []
 
-# OpenCl Device list
-opencl_device_list = []
-
-
+# Easy way to output dubug information
 def debug_output(message):
 	if DEBUG:
 		print(message)
 
+# Create the hidden and output data structure with numpy arrays
 def init_data_structure():
 	global network_hidden
 	global network_output
 	network_hidden = np.ones((hidden_size,input_size)).astype(np.float32)
 	network_output = (np.zeros(output_size)).astype(np.float32)
 
+# Load some input data to feed to the network
 def load_input_data(data_type):
 	global network_input
 	if data_type == 'random':
-		#network_input = np.random.rand(input_size) + 10*np.ones(input_size)
 		network_input = 10*np.ones(input_size).astype(np.float32)
-		network_input[1]=7
-		network_input[2]=8
 	elif data_type == 'from':
 		return 0
 
+# Find and cataloge all of the opencl compatable devices on the system
 def cl_find_devices():
 	global opencl_device_list
 	plats = cl.get_platforms()
@@ -56,15 +59,17 @@ def cl_find_devices():
 
 	print('Number of OpenCl devices found: ' + str(len(opencl_device_list)))
 
+# Get the context for a given device
 def cl_get_context():
 	context = cl.Context(devices = opencl_device_list)
 	return context
 
+# Load an opencl kenrel file as a string
 def cl_load_kernel(name):
 	kernel = open(name,'r').read() 
 	return kernel
 
-
+# Multiply 2 vectors with opencl
 def cl_mult_2_vec(this_context,input_vec_1,input_vec_2):
 
 	queue = cl.CommandQueue(this_context)
@@ -81,6 +86,7 @@ def cl_mult_2_vec(this_context,input_vec_1,input_vec_2):
 
 	return output_vec
 
+# Add 2 vectors with opencl
 def cl_add_2_vec(this_context,input_vec_1,input_vec_2):
 
 	queue = cl.CommandQueue(this_context)
@@ -97,6 +103,7 @@ def cl_add_2_vec(this_context,input_vec_1,input_vec_2):
 
 	return output_vec
 
+# Sum togther the elements of a vector
 def cl_sum_vec(vec):
 
 	queue = cl.CommandQueue(context)
@@ -104,11 +111,23 @@ def cl_sum_vec(vec):
 
 	return out
 
+# Propigate values throught the network
 def forward_prop():
 
 
 
 	return 0
+
+# Checks to see if a neuron meets its threshold to fire
+def neuron_fire_check(val):
+	# Trigger function
+	out = np.tanh(val)
+	if out >= neuron_fire_thresh:
+		return True
+	else
+		return False
+
+
 
 
 load_input_data('random')
