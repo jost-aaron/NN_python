@@ -7,7 +7,7 @@ import os
 
 
 DEBUG = True
-target_opencl_device_type = cl.device_type.CPU
+target_opencl_device_type = cl.device_type.GPU
 
 
 # Network size properties
