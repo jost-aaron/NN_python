@@ -1,4 +1,4 @@
-__kernel void sum(
+__kernel void component_sum(
     __global const float *vec_1, __global const float *vec_2, __global float *vec_out)
 {
   int id = get_global_id(0);

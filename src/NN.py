@@ -11,8 +11,9 @@ import time
 DEBUG = True
 
 # OpenCL properties
-target_opencl_device_type = cl.device_type.GPU
-opencl_device_list = []
+target_cl_device_type = cl.device_type.GPU
+cl_device_list = []
+cl_device_work_group_max_size = []
 
 # Network size properties
 input_size = 500
@@ -50,21 +51,22 @@ def load_input_data(data_type):
 
 # Find and cataloge all of the opencl compatable devices on the system
 def cl_find_devices():
-	global opencl_device_list
+	global cl_device_list
 	plats = cl.get_platforms()
 	for plat in plats:
 		index = plats.index(plat)
-		devices = plats[index].get_devices(target_opencl_device_type)
+		devices = plats[index].get_devices(target_cl_device_type)
 		for device in devices: 
-			opencl_device_list.append(device)
+			cl_device_list.append(device)
+			cl_device_work_group_max_size.append(device.max_work_group_size)
 			
 
-	print('Number of OpenCl devices found: ' + str(len(opencl_device_list)))
+	print('Number of OpenCl devices found: ' + str(len(cl_device_list)))
 
 # Get the context for a given device
 def cl_get_context():
-	#context = cl.Context(devices = opencl_device_list)
-	context = cl.Context(opencl_device_list)
+	#context = cl.Context(devices = cl_device_list)
+	context = cl.Context(cl_device_list)
 	return context
 
 # Load an opencl kenrel file as a string
@@ -81,7 +83,7 @@ def cl_mult_2_vec(input_vec_1,input_vec_2):
 	vec_2_to_device = cl_array.to_device(queue,input_vec_2)
 	output_to_device = cl_array.empty_like(vec_1_to_device,queue)
 
-	program = cl.Program(context,cl_load_kernel('component_multiply.cl')).build()
+	program = cl.Program(context,cl_load_kernel('component_multiply.c')).build()
 
 	program.component_multiply(queue, input_vec_1.shape, None, vec_1_to_device.data, vec_2_to_device.data, output_to_device.data)
 
@@ -98,9 +100,9 @@ def cl_add_2_vec(input_vec_1,input_vec_2):
 	vec_2_to_device = cl_array.to_device(queue,input_vec_2)
 	output_to_device = cl_array.empty_like(vec_1_to_device,queue)
 
-	program = cl.Program(context,cl_load_kernel('sum.cl')).build()
+	program = cl.Program(context,cl_load_kernel('component_sum.c')).build()
 
-	program.sum(queue, input_vec_1.shape, None, vec_1_to_device.data, vec_2_to_device.data, output_to_device.data)
+	program.component_sum(queue, input_vec_1.shape, None, vec_1_to_device.data, vec_2_to_device.data, output_to_device.data)
 
 	output_vec = output_to_device.get()
 
@@ -141,9 +143,20 @@ def cl_sum_bad_vec(vec):
 	else:
 		return sum(current)
 
+def cl_print_device_information(device):
+	print("----------------------------------------------------------")
+	print("Device name:", device.name)
+	print("Device type:", cl.device_type.to_string(device.type))
+	print("Device memory: ", device.global_mem_size//1024//1024, 'MB')
+	print("Device max clock speed:", device.max_clock_frequency, 'MHz')
+	print("Device compute units:", device.max_compute_units)
+	print("Device max work group size:", device.max_work_group_size)
+	print("Device max work item sizes:", device.max_work_item_sizes)
+	print("----------------------------------------------------------")
+
 
 # Propigate values throught the network
-def forward_prop():
+def forward_prop_bad():
 
 	start_time = time.time()
 	done = 0.0
@@ -167,6 +180,27 @@ def forward_prop():
 
 	return 0
 
+def forward_prop():
+	queue = cl.CommandQueue(context)
+
+	weights_matrix_to_device = cl_array.to_device(queue, input_vec_1)
+	input_vec_to_device = cl_array.to_device(queue,input_vec_2)
+	output_to_device = cl_array.empty_like(vec_1_to_device,queue)
+
+	program = cl.Program(context,cl_load_kernel('component_sum.c')).build()
+
+	numRequired = 1
+	global_size = (1,numRequired)
+	local_size = math.sqrt()
+
+	program.component_sum(queue, input_vec_1.shape, None, vec_1_to_device.data, vec_2_to_device.data, output_to_device.data)
+
+	output_vec = output_to_device.get()
+
+	return output_vec
+
+	return 0.0
+
 # Checks to see if a neuron meets its threshold to fire
 def neuron_fire_check(val):
 	# Trigger function
@@ -183,8 +217,8 @@ load_input_data('random')
 init_data_structure()
 cl_find_devices()
 context = cl_get_context()
-forward_prop()
-#print(network_output)
+forward_prop_bad()
+
 
 
 

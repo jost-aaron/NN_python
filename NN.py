@@ -12,12 +12,13 @@ DEBUG = True
 
 # OpenCL properties
 target_opencl_device_type = cl.device_type.GPU
-opencl_device_list = []
+cl_device_list = []
+cl_device_max_work_group_size = []
 
 # Network size properties
-input_size = 500
-hidden_size = 500
-output_size = 500
+input_size = 5
+hidden_size = 5
+output_size = 5
 
 # Neuron Properties
 neuron_fire_thresh = 0.5
@@ -48,23 +49,36 @@ def load_input_data(data_type):
 	elif data_type == 'from':
 		return 0
 
+def cl_print_device_info(device):
+	print("--------------------------------------------------")
+	print("Device name:", device.name)
+	print("Device type:", cl.device_type.to_string(device.type))
+	print("Device memory: ", device.global_mem_size//1024//1024, 'MB')
+	print("Device max clock speed:", device.max_clock_frequency, 'MHz')
+	print("Device compute units:", device.max_compute_units)
+	print("Device max work group size:", device.max_work_group_size)
+	print("Device max work item sizes:", device.max_work_item_sizes)
+	print("--------------------------------------------------")
+
 # Find and cataloge all of the opencl compatable devices on the system
 def cl_find_devices():
-	global opencl_device_list
+	global cl_device_list
 	plats = cl.get_platforms()
 	for plat in plats:
 		index = plats.index(plat)
 		devices = plats[index].get_devices(target_opencl_device_type)
 		for device in devices: 
-			opencl_device_list.append(device)
+			cl_device_list.append(device)
+			cl_device_max_work_group_size.append(device.max_work_group_size)
+			
 			
 
-	print('Number of OpenCl devices found: ' + str(len(opencl_device_list)))
+	print('Number of OpenCl devices found: ' + str(len(cl_device_list)))
 
 # Get the context for a given device
 def cl_get_context():
-	#context = cl.Context(devices = opencl_device_list)
-	context = cl.Context(opencl_device_list)
+	#context = cl.Context(devices = cl_device_list)
+	context = cl.Context(cl_device_list)
 	return context
 
 # Load an opencl kenrel file as a string
@@ -141,7 +155,6 @@ def cl_sum_bad_vec(vec):
 	else:
 		return sum(current)
 
-
 # Propigate values throught the network
 def forward_prop():
 
@@ -183,7 +196,10 @@ load_input_data('random')
 init_data_structure()
 cl_find_devices()
 context = cl_get_context()
-forward_prop()
+
+for device in cl_device_list:
+	cl_print_device_info(device)
+#forward_prop()
 #print(network_output)
 
 
