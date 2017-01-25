@@ -32,41 +32,40 @@ def cl_load_kernel(name):
 	return kernel
 
 def forward_prop():
+
+
 	queue = cl.CommandQueue(context)
 
-	size = (1.0*network_hidden.shape[0]*network_hidden.shape[0])/min(cl_device_work_group_max_size)
-	size = math.sqrt(size)
-	if size != int(size):
-		size = int(size)
+	# Move data to device and give a pointer to it.
+	hidden_width_to_device = cl_array.to_device(queue,network_hidden.shape[1]*np.ones(1).astype(np.int))
+	network_hidden_to_device = cl_array.to_device(queue, network_hidden.flatten('F'))
+	network_input_to_device = cl_array.to_device(queue, network_input)
+	network_output_to_device = cl_array.empty_like(network_hidden_to_device,queue)
 
-	#global_size = (size+1,size+1)
-	#local_size = (int(math.sqrt(min(cl_device_work_group_max_size))),int(math.sqrt(min(cl_device_work_group_max_size))))
+	# Specify the global and local work size
+	global_work_size = network_hidden.shape
+	number_work_groups = 4
+	local_work_size = (network_hidden.shape[0]/number_work_groups,network_hidden.shape[1]/number_work_groups)
 
-
-	global_size = (1,network_hidden.shape[0]**2)
-	local_size = None
-
-	global_size_to_device = cl_array.to_device(queue,np.int32(global_size[1]))
-	
-	weights_matrix_to_device = cl_array.to_device(queue, network_hidden)
-	input_vec_to_device = cl_array.to_device(queue,network_input)
-
-	output_to_device = cl_array.empty_like(weights_matrix_to_device,queue)
-
+	# Build program
 	program = cl.Program(context,cl_load_kernel('forward_prop.c')).build()
 
-	program.forward_prop(queue, global_size, (1,1), global_size_to_device.data,weights_matrix_to_device.data, input_vec_to_device.data, output_to_device.data)
-	output_vec = output_to_device.get()
-	return output_vec
+	# Call the kernel and load arguments
+	program.forward_prop(queue, global_work_size, None, hidden_width_to_device.data, network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data)
+
+	network_output = network_output_to_device.get().resize((8,8))
 
 
-network_hidden = np.ones((5*5)).astype(np.float32)
-network_input = 5*np.ones(5).astype(np.float32)
+
+network_hidden = 3*np.ones((8,8)).astype(np.float32)
+network_input = 2*np.ones(8).astype(np.float32)
+network_output = np.ones((8,8)).astype(np.float32)
+
 
 
 cl_find_devices()
 context = cl_get_context()
-out = forward_prop()
+forward_prop()
 print('Input vals: ' + str(network_input))
 print('hidden vals: ' + str(network_hidden))
-print('output vals: ' + str(out))
+print('output vals: ' + str(network_output))
