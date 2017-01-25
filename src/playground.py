@@ -33,39 +33,42 @@ def cl_load_kernel(name):
 
 def forward_prop():
 
+	global network_output
 
 	queue = cl.CommandQueue(context)
 
 	# Move data to device and give a pointer to it.
 	hidden_width_to_device = cl_array.to_device(queue,network_hidden.shape[1]*np.ones(1).astype(np.int))
+	hidden_height_to_device = cl_array.to_device(queue,network_hidden.shape[0]*np.ones(1).astype(np.int))
 	network_hidden_to_device = cl_array.to_device(queue, network_hidden.flatten('F'))
 	network_input_to_device = cl_array.to_device(queue, network_input)
-	network_output_to_device = cl_array.empty_like(network_hidden_to_device,queue)
+	network_output_to_device = cl_array.empty(queue, len(network_output), dtype=np.float32)
+	#network_output_to_device = cl_array.empty_like(network_input_to_device,queue)
 
 	# Specify the global and local work size
 	global_work_size = network_hidden.shape
-	number_work_groups = 4
-	local_work_size = (network_hidden.shape[0]/number_work_groups,network_hidden.shape[1]/number_work_groups)
 
 	# Build program
 	program = cl.Program(context,cl_load_kernel('forward_prop.c')).build()
 
 	# Call the kernel and load arguments
-	program.forward_prop(queue, global_work_size, None, hidden_width_to_device.data, network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data)
+	program.forward_prop(queue,global_work_size, None, hidden_width_to_device.data, hidden_height_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data)
 
-	network_output = network_output_to_device.get().resize((8,8))
+	#network_output = (network_output_to_device.get())
+	network_output = network_hidden_to_device.get()
+	network_output.resize((8,8))
 
 
 
-network_hidden = 3*np.ones((8,8)).astype(np.float32)
-network_input = 2*np.ones(8).astype(np.float32)
-network_output = np.ones((8,8)).astype(np.float32)
+network_hidden = 2*np.ones((8,8)).astype(np.float32)
+network_input = np.array([1,2,3,4,5,6,7,8]).astype(np.float32)
+network_output = np.ones(8).astype(np.float32)
 
 
 
 cl_find_devices()
 context = cl_get_context()
 forward_prop()
-print('Input vals: ' + str(network_input))
-print('hidden vals: ' + str(network_hidden))
-print('output vals: ' + str(network_output))
+print('Input vals: \n' + str(network_input))
+print('hidden vals: \n' + str(network_hidden))
+print('output vals: \n' + str(network_output))
