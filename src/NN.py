@@ -183,6 +183,9 @@ def forward_prop_bad():
 def forward_prop():
 	queue = cl.CommandQueue(context)
 
+	
+
+
 	weights_matrix_to_device = cl_array.to_device(queue, input_vec_1)
 	input_vec_to_device = cl_array.to_device(queue,input_vec_2)
 	output_to_device = cl_array.empty_like(vec_1_to_device,queue)
