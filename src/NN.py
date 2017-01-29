@@ -4,6 +4,7 @@ import pyopencl as cl
 import pyopencl.array as cl_array
 import os
 import time
+import sys
 
 
 
@@ -16,9 +17,9 @@ cl_device_list = []
 cl_device_work_group_max_size = []
 
 # Network size properties
-input_size = 500
-hidden_size = 500
-output_size = 500
+input_size = 8
+hidden_size = 8
+output_size = 8
 
 # Neuron Properties
 neuron_fire_thresh = 0.5
@@ -181,28 +182,39 @@ def forward_prop_bad():
 	return 0
 
 def forward_prop():
+	# Make network_output global so we can write to it
+	global network_output
+
+	# Create a command queue
 	queue = cl.CommandQueue(context)
 
-	
+	# Move data to device and create a pointer to it.
+	hidden_width_to_device = cl_array.to_device(queue,network_hidden.shape[1]*np.ones(1).astype(np.int))
+	hidden_height_to_device = cl_array.to_device(queue,network_hidden.shape[0]*np.ones(1).astype(np.int))
+	network_hidden_to_device = cl_array.to_device(queue, network_hidden.flatten('F'))
+	network_input_to_device = cl_array.to_device(queue, network_input)
+	network_output_to_device = cl_array.empty(queue, len(network_output), dtype=np.float32)
+	summ_local_to_device = cl.LocalMemory(sys.getsizeof(network_hidden[1,:]))
+
+	# Specify the global and local work size
+	global_work_size = network_hidden.shape
+
+	# Unused at the moment but will be implemented later
+	#pref_wrk_gSize = cl.kernel_work_group_info.PREFERRED_WORK_GROUP_SIZE_MULTIPLE
+
+	# TODO: If collum size is bigger then max workgroup size then we need to take care of that
+	local_work_size = (network_hidden.shape[1],1)
+
+	# Build program
+	program = cl.Program(context,cl_load_kernel('forward_prop.c')).build()
+
+	# Call the kernel and load arguments
+	program.forward_prop(queue,global_work_size, local_work_size, hidden_width_to_device.data, hidden_height_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data,summ_local_to_device)
+
+	# Get the output from the device
+	return network_output_to_device.get()
 
 
-	weights_matrix_to_device = cl_array.to_device(queue, input_vec_1)
-	input_vec_to_device = cl_array.to_device(queue,input_vec_2)
-	output_to_device = cl_array.empty_like(vec_1_to_device,queue)
-
-	program = cl.Program(context,cl_load_kernel('component_sum.c')).build()
-
-	numRequired = 1
-	global_size = (1,numRequired)
-	local_size = math.sqrt()
-
-	program.component_sum(queue, input_vec_1.shape, None, vec_1_to_device.data, vec_2_to_device.data, output_to_device.data)
-
-	output_vec = output_to_device.get()
-
-	return output_vec
-
-	return 0.0
 
 # Checks to see if a neuron meets its threshold to fire
 def neuron_fire_check(val):
@@ -221,6 +233,11 @@ init_data_structure()
 cl_find_devices()
 context = cl_get_context()
 forward_prop_bad()
+output = forward_prop()
+
+print(network_input)
+print(network_hidden)
+print(output)
 
 
 
