@@ -35,6 +35,7 @@ def cl_load_kernel(name):
 def feed_forward_play():
 	# Make network_output global so we can write to it
 	global network_output
+	global network_output_multiplication
 
 	# Create a command queue
 	queue = cl.CommandQueue(context)
@@ -53,6 +54,9 @@ def feed_forward_play():
 	#pref_wrk_gSize = cl.kernel_work_group_info.PREFERRED_WORK_GROUP_SIZE_MULTIPLE
 
 	# TODO: If collum size is bigger then max workgroup size then we need to take care of that
+	
+	#local_work_size = (network_hidden.shape[1],1)
+
 	local_work_size = (network_hidden.shape[1],1)
 
 	# Build program
@@ -63,12 +67,17 @@ def feed_forward_play():
 
 	# Get the output from the device
 	network_output = network_output_to_device.get()
+	network_output_multiplication = network_hidden_to_device.get()
+	network_output_multiplication.resize((8,8))
+
+
 
 
 
 network_hidden = 2*np.ones((8,8)).astype(np.float32)
 network_input = np.array([1,2,3,4,5,6,7,8]).astype(np.float32)
 network_output = np.ones(8).astype(np.float32)
+network_output_multiplication = 0
 
 for i in range(0,network_hidden.shape[0]):
 	network_hidden[i,:] = i
@@ -76,9 +85,17 @@ for i in range(0,network_hidden.shape[0]):
 cl_find_devices()
 context = cl_get_context()
 feed_forward_play()
+
+expected_out = np.zeros(network_hidden.shape[1])
+for i in range(0,network_hidden.shape[1]):
+	expected_out[i] = sum(network_output_multiplication[i,:])
+
+
 print('Input vals: \n' + str(network_input))
 print('hidden vals: \n' + str(network_hidden))
+print('Hidden After mult: \n' + str(network_output_multiplication))
 print('output vals: \n' + str(network_output))
+print('Expected output: \n' + str(expected_out))
 
 
 

@@ -17,7 +17,8 @@ __kernel void feed_forward_play(
     int width = *network_width;
    
     // Multiply the iput values onto their row
-    weights_vec_access(global_y,global_x) = weights_vec_access(global_y,global_x) * input_vec[global_y];
+    // For some reason this was transposing the matrix when accesing weights_vec_access so it was switched
+    weights_vec_access(global_x,global_y) = weights_vec_access(global_y,global_x) * input_vec[global_y];
 
     // Find the local id of this instance in its workgroup
     uint local_id = get_local_id(0);

@@ -155,10 +155,6 @@ def cl_move_network_to_device(queue):
 
 	return [network_input_to_device,network_hidden_to_device,network_output_to_device]
 
-def cl_load_debug(queue,local_group_size):
-	debug_to_device = cl_array.empty(queue,local_group_size,dtype=np.int)
-	return debug_to_device
-
 # Propigate values through the network using a single kernel 
 def feed_forward():
 	# Make network_output global so we can write to it
@@ -172,8 +168,6 @@ def feed_forward():
 
 	# Create a command queue
 	queue = cl.CommandQueue(context)
-
-	debug_to_device = cl_load_debug(queue,network_hidden.shape[1])
 
 	# Move Network to device and return its pointers
 	network_input_to_device,network_hidden_to_device,network_output_to_device = cl_move_network_to_device(queue)
@@ -197,11 +191,7 @@ def feed_forward():
 	program = cl.Program(context,cl_load_kernel('feed_forward.c')).build()
 
 	# Call the kernel and load arguments
-	program.feed_forward(queue,global_work_size, local_work_size, hidden_width_to_device.data,local_groups_per_row_to_device.data,debug_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data,summ_local_to_device)
-
-	debug_data = debug_to_device.get()
-
-	print(debug_data)
+	program.feed_forward(queue,global_work_size, local_work_size, hidden_width_to_device.data,local_groups_per_row_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data,summ_local_to_device)
 
 	# Get the output from the device
 	return network_output_to_device.get()

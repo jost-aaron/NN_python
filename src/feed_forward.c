@@ -4,7 +4,6 @@
 __kernel void feed_forward(
   	__global int *network_width,
     __global int *num_work_groups_per_row,
-    __global int *debug_array,
     __global float *input_vec,
     __global float *weights_vec, 
     __global float *vec_out,
@@ -19,7 +18,8 @@ __kernel void feed_forward(
     int width = *network_width;
    
     // Multiply the iput values onto their row
-    weights_vec_access(global_y,global_x) = weights_vec_access(global_y,global_x) * input_vec[global_y];
+    // For some reason this was transposing the matrix when accesing weights_vec_access so it was switched
+    weights_vec_access(global_x,global_y) = weights_vec_access(global_y,global_x) * input_vec[global_y];
 
     // Find the local id of this instance in its workgroup
     uint local_id = get_local_id(0);
@@ -27,8 +27,11 @@ __kernel void feed_forward(
     // Get the work group size
     uint group_size = get_local_size(0);
 
-    // Copy the numbers we want to use from global memory to local memory
+    // Copy the numbers we want to use from global memory to private memory
     localSums[local_id] = weights_vec_access(global_y,global_x);
+
+    // Move work group size info into private memory
+    int num_work_groups_per_row_private = num_work_groups_per_row;
 
   // Loop for computing localSums
     for (uint stride = group_size/2; stride>0; stride /=2)
