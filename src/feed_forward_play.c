@@ -1,30 +1,31 @@
 #define vec_out_access(r, c) (vec_out[(r)*width + (c)])
 #define weights_vec_access(r, c) (weights_vec[(r)*width + (c)])
 
-__kernel void forward_prop(
-	__global int *network_width,
-	__global int *network_height,
+__kernel void feed_forward_play(
+  	__global int *network_width,
     __global float *input_vec,
     __global float *weights_vec, 
     __global float *vec_out,
     __local float *localSums)
 {
   
-    
-
+    // Get the global position of this instance
     int global_x = get_global_id(0);
     int global_y = get_global_id(1);
 
+    // Load the network width into private memory
     int width = *network_width;
-
    
+    // Multiply the iput values onto their row
     weights_vec_access(global_y,global_x) = weights_vec_access(global_y,global_x) * input_vec[global_y];
 
-
+    // Find the local id of this instance in its workgroup
     uint local_id = get_local_id(0);
+
+    // Get the work group size
     uint group_size = get_local_size(0);
 
-  // Copy from global memory to local memory
+    // Copy the numbers we want to use from global memory to local memory
     localSums[local_id] = weights_vec_access(global_y,global_x);
 
   // Loop for computing localSums
@@ -39,8 +40,23 @@ __kernel void forward_prop(
             localSums[local_id] += localSums[local_id + stride];
          }
 
-      // Write result into partialSums[nWorkGroups]
-      if (local_id == 0)
-        vec_out[global_y] = localSums[0];
+
+         bool multi_work_groups = true;
+
+         if (multi_work_groups) {
+
+               // Do this if we dont have multiple workgroups per row
+            // Write result into partialSums[nWorkGroups]
+            if (local_id == 0) {
+              vec_out[global_y] = localSums[0];
+            }
+
+        } else{
+
+      // Wait for all workgroups to get here
+      barrier(CLK_GLOBAL_MEM_FENCE);
+      // If the workgroup does not contain the row for the sum save it into global memory so we can do another summation
+      
+        }
  }                  
 

@@ -32,7 +32,7 @@ def cl_load_kernel(name):
 	kernel = open(name,'r').read() 
 	return kernel
 
-def forward_prop():
+def feed_forward_play():
 	# Make network_output global so we can write to it
 	global network_output
 
@@ -41,7 +41,6 @@ def forward_prop():
 
 	# Move data to device and create a pointer to it.
 	hidden_width_to_device = cl_array.to_device(queue,network_hidden.shape[1]*np.ones(1).astype(np.int))
-	hidden_height_to_device = cl_array.to_device(queue,network_hidden.shape[0]*np.ones(1).astype(np.int))
 	network_hidden_to_device = cl_array.to_device(queue, network_hidden.flatten('F'))
 	network_input_to_device = cl_array.to_device(queue, network_input)
 	network_output_to_device = cl_array.empty(queue, len(network_output), dtype=np.float32)
@@ -57,10 +56,10 @@ def forward_prop():
 	local_work_size = (network_hidden.shape[1],1)
 
 	# Build program
-	program = cl.Program(context,cl_load_kernel('forward_prop.c')).build()
+	program = cl.Program(context,cl_load_kernel('feed_forward_play.c')).build()
 
 	# Call the kernel and load arguments
-	program.forward_prop(queue,global_work_size, local_work_size, hidden_width_to_device.data, hidden_height_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data,summ_local_to_device)
+	program.feed_forward_play(queue,global_work_size, local_work_size, hidden_width_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data,summ_local_to_device)
 
 	# Get the output from the device
 	network_output = network_output_to_device.get()
@@ -71,11 +70,12 @@ network_hidden = 2*np.ones((8,8)).astype(np.float32)
 network_input = np.array([1,2,3,4,5,6,7,8]).astype(np.float32)
 network_output = np.ones(8).astype(np.float32)
 
-
+for i in range(0,network_hidden.shape[0]):
+	network_hidden[i,:] = i
 
 cl_find_devices()
 context = cl_get_context()
-forward_prop()
+feed_forward_play()
 print('Input vals: \n' + str(network_input))
 print('hidden vals: \n' + str(network_hidden))
 print('output vals: \n' + str(network_output))
