@@ -32,13 +32,30 @@ def cl_load_kernel(name):
 	kernel = open(name,'r').read() 
 	return kernel
 
-def estimate_vram_usage(num_vals):
-	# edit this to not require any input value and just do it by its self
+def estimate_vram_usage():
 
+	# Number of values for hidden matrix
+	num_vals = network_hidden.shape[0] * network_hidden.shape[1]
+	
+	# Number of values for input vector
+	num_vals = num_vals + max(network_input.shape)
+	
+	# Number of values for output vector
+	num_vals = num_vals + max(network_output.shape)
+	
+	# Number of values for the local buffer 
+	num_vals = num_vals + max(network_hidden[0,:].shape)
+
+	# Size of data in bytes
 	in_bytes = num_vals*32/8
+
+	# Size of data in kBytes
 	in_Kbytes = in_bytes/1000
+
+	# Size of data in MBytes
 	in_Mbytes = in_Kbytes/1000
 
+	# Check to see what the most relivent size is
 	if (in_bytes < 1000):
 		return str(in_bytes) + ' B'
 	elif(in_Kbytes < 1000):
@@ -49,6 +66,7 @@ def estimate_vram_usage(num_vals):
 
 def feed_forward_play():
 	# Make network_output global so we can write to it
+	global network_hidden
 	global network_output
 	global network_output_multiplication
 
@@ -58,16 +76,42 @@ def feed_forward_play():
 	# Might have to add zeros to the input matrix as padding (zeros) to allow the local work groups to be the same size 
 
 
-	# Finc local work group size
+	# Find max local work group size
 	max_work_group_size = min(cl_device_work_group_max_size)
+
+	# calculte the number of work groups per collum
 	num_work_groups_per_collum = int(network_hidden.shape[1]/max_work_group_size) + 1
+
+	remainder_padding = 0
+
+	if (num_work_groups_per_collum != 1):
+
+		remainder_padding = max_work_group_size*num_work_groups_per_collum - network_hidden.shape[1]
+		print('padding size: ' + str(remainder_padding))
+		print('max work size: ' + str(max_work_group_size))
+		print('num work groups per collum: ' + str(num_work_groups_per_collum))
+		print('network shape collums: ' + str(network_hidden.shape[1]))
+		insert_padding = np.zeros((network_hidden.shape[0],remainder_padding)).astype(np.float32)
+
+		padding_dims = insert_padding.shape
+
+
+	
+		#insert padding
+		network_hidden = np.append(network_hidden,insert_padding,axis=1)
+
+	# create a buffer to store the sub sums for each collum
 	sum_bridge = np.zeros((network_hidden.shape[0],num_work_groups_per_collum)).astype(np.float32)
+
+	# move the buffer to the device
 	sum_bridge_to_device = cl_array.to_device(queue,sum_bridge.flatten())
+
+	# Move the number of sums per collum
 	sums_per_collum_to_device = cl_array.to_device(queue,sum_bridge.shape[1]*np.ones(1).astype(np.int))
 
-	#local_work_size = (network_hidden.shape[1],1)
-	local_work_size = (255,1)
+	local_work_size = (network_hidden.shape[1]/num_work_groups_per_collum,1)
 
+	#local_work_size = (data_size,1)
 
 	# Move data to device and create a pointer to it.
 	hidden_width_to_device = cl_array.to_device(queue,network_hidden.shape[1]*np.ones(1).astype(np.int))
@@ -83,16 +127,26 @@ def feed_forward_play():
 	program = cl.Program(context,cl_load_kernel('feed_forward_play.c')).build()
 
 	# Call the kernel and load arguments
-	program.feed_forward_play(queue,global_work_size, local_work_size, hidden_width_to_device.data,sums_per_collum_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data,sum_bridge_to_device.data,sum_local_to_device)
+	program.feed_forward_play(queue,
+								global_work_size, 
+								local_work_size, 
+								hidden_width_to_device.data,
+								sums_per_collum_to_device.data,
+								network_input_to_device.data , 
+								network_hidden_to_device.data,
+								network_output_to_device.data,
+								sum_bridge_to_device.data,
+								sum_local_to_device)
 
 	# Get the output from the device
 	network_output = network_output_to_device.get()
 	network_output_multiplication = network_hidden_to_device.get()
-	network_output_multiplication.resize((data_size,data_size))
+	print('Output size: '+str(network_output_multiplication.shape))
+	network_output_multiplication = np.resize(network_output_multiplication,(network_hidden.shape[0],network_hidden.shape[1]+remainder_padding))
 
 
 
-data_size = 255
+data_size = 256
 network_hidden = np.ones((data_size,data_size)).astype(np.float32)
 
 array_vals = []
@@ -114,13 +168,14 @@ context = cl_get_context()
 feed_forward_play()
 
 # For calculating the expected value of the output computation
-expected_out = np.zeros(network_hidden.shape[1])
-for i in range(0,network_hidden.shape[1]):
+expected_out = np.zeros(network_hidden.shape[0])
+print('Hidden Shape collums: '+str(network_hidden.shape[1]))
+print('Hidden Shape rows: '+str(network_hidden.shape[0]))
+for i in range(0,network_hidden.shape[0]):
 	expected_out[i] = sum(network_output_multiplication[i,:])
 
-global_vram_usage = estimate_vram_usage(network_hidden.shape[0]*network_hidden.shape[1] + max(network_input.shape) + max(network_output.shape))
-print('Global VRAM usage: ' + global_vram_usage)
-print('Local VRAM usage: ' + estimate_vram_usage(max(network_hidden[1,:].shape)))
+print('VRAM usage: ' + estimate_vram_usage())
+
 
 #print('Input vals: \n' + str(network_input))
 #print('hidden vals: \n' + str(network_hidden))
@@ -134,7 +189,7 @@ if (sum(diff) == 0):
 	print('Addition Sucessfull!')
 else:
 	print('Addition Unsucessfull')
-	print('Difference: \n' + str(diff))
+	#print('Difference: \n' + str(diff))
 
 
 

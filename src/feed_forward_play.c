@@ -34,25 +34,23 @@ __kernel void feed_forward_play(
     local_sums[local_id] = input_matrix_access(global_y,global_x);
 
   // Loop for computing local_sums of this row
-    for (float stride = group_size/(float)(2); (int)(stride)>0; stride /=2)
+    for (float stride = group_size/(float)2; (int)stride>0; stride /=2)
          {
          // Wait for the addition of the last stride to finish
          barrier(CLK_LOCAL_MEM_FENCE);
 
          // If stride is an odd number add the last value of the current sum to the value at local index 0 and make stride an even number
          if (!(stride - (float)((int)(stride)) == 0) && local_id == 0){
-            local_sums[0] += local_sums[2*(uint)(stride)];
-            stride = (float)((int)(stride));
+            local_sums[0] += local_sums[2*(uint)stride];
+            stride = (float)((int)stride);
          }
 
          // Wait for the odd stride to be fixed
          barrier(CLK_LOCAL_MEM_FENCE);
 
-
-          // Divide WorkGroup into 2 parts and add elements 2 by 2
-          // between local_id and local_id + stride
-          if (local_id < (uint)(stride))
-            local_sums[local_id] += local_sums[local_id + (uint)(stride)];
+          // Divide WorkGroup into 2 parts and add elements 2 by 2 between local_id and local_id + stride
+          if (local_id < (uint)stride)
+            local_sums[local_id] += local_sums[local_id + (uint)stride];
          }
 
          // Check if we need to sum values with another work group for this row
@@ -67,8 +65,9 @@ __kernel void feed_forward_play(
 
           // If the local id is 0 then move the sum of this workgroup into the sum bridge in the correct collum
           if (local_id == 0){
+            
             // Calculate the collum we need to store this workgroups result in the sub bridge
-            int collum = (int)((global_x)/(group_size));
+            int collum = (int)(global_x/group_size);
 
             // Move the result from local memory into global memory of sub bridge
             sum_bridge(global_y,collum) = local_sums[0];
