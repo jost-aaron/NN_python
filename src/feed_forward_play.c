@@ -1,12 +1,12 @@
-#define vec_out_access(r, c) (vec_out[(r)*width + (c)])
-#define weights_vec_access(r, c) (weights_vec[(r)*width + (c)])
+#define output_vector_access(r, c) (output_vector[(r)*width + (c)])
+#define input_matrix_access(r, c) (input_matrix[(r)*width + (c)])
 
 __kernel void feed_forward_play(
-  	__global int *network_width,
-    __global float *input_vec,
-    __global float *weights_vec, 
-    __global float *vec_out,
-    __local float *localSums)
+  	__global int *number_collums,
+    __global float *input_vector,
+    __global float *input_matrix, 
+    __global float *output_vector,
+    __local float *local_sums)
 {
   
     // Get the global position of this instance
@@ -14,11 +14,11 @@ __kernel void feed_forward_play(
     int global_y = get_global_id(1);
 
     // Load the network width into private memory
-    int width = *network_width;
+    int width = *number_collums;
    
     // Multiply the iput values onto their row
-    // For some reason this was transposing the matrix when accesing weights_vec_access so it was switched
-    weights_vec_access(global_x,global_y) = weights_vec_access(global_y,global_x) * input_vec[global_y];
+    // For some reason this was transposing the matrix when accesing input_matrix_access so it was switched
+    input_matrix_access(global_y,global_x) = input_matrix_access(global_x,global_y) * input_vector[global_y];
 
     // Find the local id of this instance in its workgroup
     uint local_id = get_local_id(0);
@@ -27,29 +27,39 @@ __kernel void feed_forward_play(
     uint group_size = get_local_size(0);
 
     // Copy the numbers we want to use from global memory to local memory
-    localSums[local_id] = weights_vec_access(global_y,global_x);
+    local_sums[local_id] = input_matrix_access(global_y,global_x);
 
-  // Loop for computing localSums
-    for (uint stride = group_size/2; stride>0; stride /=2)
+  // Loop for computing local_sums
+    for (float stride = group_size/float(2); int(stride)>0; stride /=2)
          {
-         // Waiting for each 2x2 addition into given workgroup
+         // Waiting for each addition into given workgroup
          barrier(CLK_LOCAL_MEM_FENCE);
 
-          // Divide WorkGroup into 2 parts and add elements 2 by 2
-          // between local_id and local_id + stride
-          if (local_id < stride)
-            localSums[local_id] += localSums[local_id + stride];
+         // If stride is an odd number add the last value of the current sum to its lift value and store it
+         if (!(stride - float(int(stride)) == 0) && local_id == 0){
+            local_sums[0] += local_sums[2*uint(stride)];
+            stride = float(int(stride));
          }
 
 
-         bool multi_work_groups = true;
+         barrier(CLK_LOCAL_MEM_FENCE);
 
-         if (multi_work_groups) {
+
+          // Divide WorkGroup into 2 parts and add elements 2 by 2
+          // between local_id and local_id + stride
+          if (local_id < uint(stride))
+            local_sums[local_id] += local_sums[local_id + uint(stride)];
+         }
+
+
+         bool single_work_group = true;
+
+         if (single_work_group) {
 
                // Do this if we dont have multiple workgroups per row
             // Write result into partialSums[nWorkGroups]
             if (local_id == 0) {
-              vec_out[global_y] = localSums[0];
+              output_vector[global_y] = local_sums[0];
             }
 
         } else{
