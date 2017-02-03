@@ -55,7 +55,7 @@ def feed_forward_play():
 
 	# Move data to device and create a pointer to it.
 	hidden_width_to_device = cl_array.to_device(queue,network_hidden.shape[1]*np.ones(1).astype(np.int))
-	network_hidden_to_device = cl_array.to_device(queue, network_hidden.flatten('F'))
+	network_hidden_to_device = cl_array.to_device(queue, network_hidden.flatten())
 	network_input_to_device = cl_array.to_device(queue, network_input)
 	network_output_to_device = cl_array.empty(queue, len(network_output), dtype=np.float32)
 	summ_local_to_device = cl.LocalMemory(sys.getsizeof(network_hidden[1,:]))
@@ -83,7 +83,7 @@ def feed_forward_play():
 
 
 
-data_size = 130
+data_size = 210
 network_hidden = np.ones((data_size,data_size)).astype(np.float32)
 
 array_vals = []
@@ -112,6 +112,7 @@ for i in range(0,network_hidden.shape[1]):
 global_vram_usage = estimate_vram_usage(network_hidden.shape[0]*network_hidden.shape[1] + max(network_input.shape) + max(network_output.shape))
 print('Global VRAM usage: ' + global_vram_usage)
 print('Local VRAM usage: ' + estimate_vram_usage(max(network_hidden[1,:].shape)))
+
 #print('Input vals: \n' + str(network_input))
 #print('hidden vals: \n' + str(network_hidden))
 #print('Hidden After mult: \n' + str(network_output_multiplication))

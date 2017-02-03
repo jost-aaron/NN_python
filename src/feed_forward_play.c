@@ -1,4 +1,3 @@
-#define output_vector_access(r, c) (output_vector[(r)*width + (c)])
 #define input_matrix_access(r, c) (input_matrix[(r)*width + (c)])
 
 __kernel void feed_forward_play(
@@ -18,7 +17,7 @@ __kernel void feed_forward_play(
    
     // Multiply the iput values onto their row
     // For some reason this was transposing the matrix when accesing input_matrix_access so it was switched
-    input_matrix_access(global_y,global_x) = input_matrix_access(global_x,global_y) * input_vector[global_y];
+    input_matrix_access(global_y,global_x) = input_matrix_access(global_y,global_x) * input_vector[global_y];
 
     // Find the local id of this instance in its workgroup
     uint local_id = get_local_id(0);
