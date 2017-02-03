@@ -1,10 +1,17 @@
 #define input_matrix_access(r, c) (input_matrix[(r)*width + (c)])
+#define sum_bridge(r,c) (sum_bridge[(r)*num_sums_per_collum + (c)])
+
+// Constants variable 
+  // index 0: number_collums
+  // index 1: num_sums_per_collum
 
 __kernel void feed_forward_play(
-  	__global int *number_collums,
+  	__global int *network_width,
+    __global int *sums_per_collum,
     __global float *input_vector,
     __global float *input_matrix, 
     __global float *output_vector,
+    __global float *sum_bridge,
     __local float *local_sums)
 {
   
@@ -12,8 +19,9 @@ __kernel void feed_forward_play(
     int global_x = get_global_id(0);
     int global_y = get_global_id(1);
 
-    // Load the network width into private memory
-    int width = *number_collums;
+    // Load the constants into private memory
+    int width = *network_width;
+    int num_sums_per_collum = *sums_per_collum;
    
     // Multiply the iput values onto their row
     // For some reason this was transposing the matrix when accesing input_matrix_access so it was switched

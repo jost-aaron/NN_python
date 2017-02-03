@@ -53,28 +53,35 @@ def feed_forward_play():
 	# Create a command queue
 	queue = cl.CommandQueue(context)
 
+	# Might have to add zeros to the input matrix as padding (zeros) to allow the local work groups to be the same size 
+
+
+	# Finc local work group size
+	max_work_group_size = min(cl_device_work_group_max_size)
+	num_work_groups_per_collum = int(network_hidden.shape[1]/max_work_group_size) + 1
+	sum_bridge = np.zeros((network_hidden.shape[0],num_work_groups_per_collum)).astype(np.float32)
+	sum_bridge_to_device = cl_array.to_device(queue,sum_bridge.flatten())
+	sums_per_collum_to_device = cl_array.to_device(queue,sum_bridge.shape[1]*np.ones(1).astype(np.int))
+
+	#local_work_size = (network_hidden.shape[1],1)
+	local_work_size = (256,1)
+
+
 	# Move data to device and create a pointer to it.
 	hidden_width_to_device = cl_array.to_device(queue,network_hidden.shape[1]*np.ones(1).astype(np.int))
 	network_hidden_to_device = cl_array.to_device(queue, network_hidden.flatten())
 	network_input_to_device = cl_array.to_device(queue, network_input)
 	network_output_to_device = cl_array.empty(queue, len(network_output), dtype=np.float32)
-	summ_local_to_device = cl.LocalMemory(sys.getsizeof(network_hidden[1,:]))
+	sum_local_to_device = cl.LocalMemory(sys.getsizeof(network_hidden[1,:]))
 
 	# Specify the global and local work size
 	global_work_size = network_hidden.shape
-
-	# Unused at the moment but will be implemented later
-	#pref_wrk_gSize = cl.kernel_work_group_info.PREFERRED_WORK_GROUP_SIZE_MULTIPLE
-
-	# TODO: If collum size is bigger then max workgroup size then we need to take care of that
-
-	local_work_size = (network_hidden.shape[1],1)
 
 	# Build program
 	program = cl.Program(context,cl_load_kernel('feed_forward_play.c')).build()
 
 	# Call the kernel and load arguments
-	program.feed_forward_play(queue,global_work_size, local_work_size, hidden_width_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data,summ_local_to_device)
+	program.feed_forward_play(queue,global_work_size, local_work_size, hidden_width_to_device.data,sums_per_collum_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data,sum_bridge_to_device.data,sum_local_to_device)
 
 	# Get the output from the device
 	network_output = network_output_to_device.get()
@@ -83,7 +90,7 @@ def feed_forward_play():
 
 
 
-data_size = 210
+data_size = 256
 network_hidden = np.ones((data_size,data_size)).astype(np.float32)
 
 array_vals = []
