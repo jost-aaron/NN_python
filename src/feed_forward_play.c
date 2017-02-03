@@ -1,9 +1,6 @@
+// Defined functions to access the flattened matricies as regular matricies
 #define input_matrix_access(r, c) (input_matrix[(r)*width + (c)])
 #define sum_bridge(r,c) (sum_bridge[(r)*num_sums_per_collum + (c)])
-
-// Constants variable 
-  // index 0: number_collums
-  // index 1: num_sums_per_collum
 
 __kernel void feed_forward_play(
   	__global int *network_width,
@@ -36,19 +33,19 @@ __kernel void feed_forward_play(
     // Copy the numbers we want to use from global memory to local memory
     local_sums[local_id] = input_matrix_access(global_y,global_x);
 
-  // Loop for computing local_sums
+  // Loop for computing local_sums of this row
     for (float stride = group_size/float(2); int(stride)>0; stride /=2)
          {
-         // Waiting for each addition into given workgroup
+         // Wait for the addition of the last stride to finish
          barrier(CLK_LOCAL_MEM_FENCE);
 
-         // If stride is an odd number add the last value of the current sum to its lift value and store it
+         // If stride is an odd number add the last value of the current sum to the value at local index 0 and make stride an even number
          if (!(stride - float(int(stride)) == 0) && local_id == 0){
             local_sums[0] += local_sums[2*uint(stride)];
             stride = float(int(stride));
          }
 
-
+         // Wait for the odd stride to be fixed
          barrier(CLK_LOCAL_MEM_FENCE);
 
 
@@ -58,23 +55,46 @@ __kernel void feed_forward_play(
             local_sums[local_id] += local_sums[local_id + uint(stride)];
          }
 
+         // Check if we need to sum values with another work group for this row
+         if (num_sums_per_collum == 1) {
 
-         bool single_work_group = true;
-
-         if (single_work_group) {
-
-               // Do this if we dont have multiple workgroups per row
-            // Write result into partialSums[nWorkGroups]
+            // Write result into the output vector
             if (local_id == 0) {
               output_vector[global_y] = local_sums[0];
             }
 
         } else{
 
-      // Wait for all workgroups to get here
-      barrier(CLK_GLOBAL_MEM_FENCE);
-      // If the workgroup does not contain the row for the sum save it into global memory so we can do another summation
-      
+          // If the local id is 0 then move the sum of this workgroup into the sum bridge in the correct collum
+          if (local_id == 0){
+            // Calculate the collum we need to store this workgroups result in the sub bridge
+            int collum = int((global_x)/(group_size));
+
+            // Move the result from local memory into global memory of sub bridge
+            sum_bridge(global_y,collum) = local_sums[0];
+          }
+
+          // Wait for all workgroups to finish their local sums and put them into the sum bridge
+          barrier(CLK_GLOBAL_MEM_FENCE);
+
+          // If this instance is the leader of its row
+          if (global_y == 0) {
+            // Move number of sums per collum into private memory
+            int num_sums = *sums_per_collum;
+
+            // ititalize a value for total number of sums
+            float total_sum = 0;
+
+            // Sum the sum bridge row
+            for (int i = 0; i <= num_sums; i++) {
+                total_sum += sum_bridge(global_y,i);
+              }
+
+            // Move the result into the output vector
+            output_vector[global_y] = total_sum;
+          }
+    
+
         }
  }                  
 

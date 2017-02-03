@@ -33,6 +33,8 @@ def cl_load_kernel(name):
 	return kernel
 
 def estimate_vram_usage(num_vals):
+	# edit this to not require any input value and just do it by its self
+
 	in_bytes = num_vals*32/8
 	in_Kbytes = in_bytes/1000
 	in_Mbytes = in_Kbytes/1000
@@ -64,7 +66,7 @@ def feed_forward_play():
 	sums_per_collum_to_device = cl_array.to_device(queue,sum_bridge.shape[1]*np.ones(1).astype(np.int))
 
 	#local_work_size = (network_hidden.shape[1],1)
-	local_work_size = (256,1)
+	local_work_size = (255,1)
 
 
 	# Move data to device and create a pointer to it.
@@ -90,7 +92,7 @@ def feed_forward_play():
 
 
 
-data_size = 256
+data_size = 255
 network_hidden = np.ones((data_size,data_size)).astype(np.float32)
 
 array_vals = []
