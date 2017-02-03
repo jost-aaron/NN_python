@@ -78,7 +78,7 @@ __kernel void feed_forward_play(
 
           // If this instance is the leader of its row
           if (global_y == 0) {
-            // Move number of sums per collum into private memory
+            // Move number of sums per collum into local memory
             int num_sums = *sums_per_collum;
 
             // ititalize a value for total number of sums
