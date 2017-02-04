@@ -124,57 +124,52 @@ def feed_forward_play():
 	# Create a command queue
 	queue = cl.CommandQueue(context)
 
-	# Might have to add zeros to the input matrix as padding (zeros) to allow the local work groups to be the same size 
-
-
 	# Find max local work group size
 	max_work_group_size = min(cl_device_work_group_max_size)
 
-	# calculte the number of work groups per collum
-	num_work_groups_per_collum = int(network_hidden.shape[1]/max_work_group_size)+1
+	# calculte the number of work groups per row
+	num_work_groups_per_row = int(network_hidden.shape[1]/max_work_group_size)+1
 
+	# Initalize a variable for padding
 	remainder_padding = 0
 
+	# Make a temp variable we can add the padding to and not affect the network variable
 	padded_matrix_tmp = network_hidden
 
-	if (num_work_groups_per_collum != 1):
+	# If there was no padding added and there is only one work group per row
+	if (num_work_groups_per_row != 1):
 
-		remainder_padding = abs(max_work_group_size*(num_work_groups_per_collum) - network_hidden.shape[1])
-		print('DEBUG: padding size: ' + str(remainder_padding))
-		print('DEBUG: max work size: ' + str(max_work_group_size))
-		print('DEBUG: num work groups per collum: ' + str(num_work_groups_per_collum))
-		print('DEBUG: network shape collums: ' + str(network_hidden.shape[1]))
+		# Calculate how much padding is necessary to fill the last work group
+		remainder_padding = abs(max_work_group_size*(num_work_groups_per_row) - network_hidden.shape[1])
+
+		# Generate a matrix with same number of rows as hidden network and number of collums defined by remainder_padding
 		insert_padding = np.zeros((network_hidden.shape[0],remainder_padding)).astype(np.float32)
 
-		padding_dims = insert_padding.shape
-
-		#make a temporary version of network_hidden and add padding (zeros) so the last workgroup is filled
+		# Make a temporary version of network_hidden and add padding (zeros) so the last workgroup is filled
 		padded_matrix_tmp = np.append(padded_matrix_tmp,insert_padding,axis=1)
-		print('DEBUG: network_hidden + padding collums: ' + str(padded_matrix_tmp.shape[1]))
-		print('DEBUG: divisable by number of workgroups per collum test: ' + str(padded_matrix_tmp.shape[1]/(1.0*num_work_groups_per_collum)))
+		
+		# Check if the zeros were added to the last work group correctly
+		average_work_group_size_test = padded_matrix_tmp.shape[1]/(1.0*num_work_groups_per_row)
 
+		if (int(average_work_group_size_test) != 256):
+			print('ERROR: Padding might now have been allocated correctly to fill up the last work group')
+			exit(1)
 
-	# create a buffer to store the sub sums for each collum
-	sum_bridge = np.zeros((network_hidden.shape[0],num_work_groups_per_collum)).astype(np.float32)
+	# create a buffer to store the sub sums for each row
+	sum_bridge = np.zeros((network_hidden.shape[0],num_work_groups_per_row)).astype(np.float32)
 
 	# move the buffer to the device
 	sum_bridge_to_device = cl_array.to_device(queue,sum_bridge.flatten())
 
-	# Move the number of sums per collum
-	sums_per_collum_to_device = cl_array.to_device(queue,sum_bridge.shape[1]*np.ones(1).astype(np.int))
+	# Move the number of sums per row
+	sums_per_row_to_device = cl_array.to_device(queue,sum_bridge.shape[1]*np.ones(1).astype(np.int))
 
-	#local_work_size = (network_hidden.shape[1]/num_work_groups_per_collum,1)
+	#local_work_size = (network_hidden.shape[1]/num_work_groups_per_row,1)
 	local_work_size = (0,0)
 	if (padded_matrix_tmp.shape[1] <= 256):
 		local_work_size = (padded_matrix_tmp.shape[1],1)
 	else:
 		local_work_size = (256,1)
-
-
-
-	print('Local work size: ' + str(local_work_size))
-
-	#local_work_size = (data_size,1)
 
 	# Move data to device and create a pointer to it.
 	hidden_width_to_device = cl_array.to_device(queue,padded_matrix_tmp.shape[1]*np.ones(1).astype(np.int))
@@ -185,7 +180,6 @@ def feed_forward_play():
 
 	# Specify the global and local work size
 	global_work_size = (padded_matrix_tmp.shape[1],padded_matrix_tmp.shape[0])
-	print('Global work group size: ' + str(global_work_size))
 
 	# Build program
 	program = cl.Program(context,cl_load_kernel('feed_forward_play.c')).build()
@@ -195,7 +189,7 @@ def feed_forward_play():
 								global_work_size, 
 								local_work_size, 
 								hidden_width_to_device.data,
-								sums_per_collum_to_device.data,
+								sums_per_row_to_device.data,
 								network_input_to_device.data , 
 								network_hidden_to_device.data,
 								network_output_to_device.data,
@@ -212,7 +206,7 @@ def feed_forward_play():
 
 
 
-data_size = 256*10
+data_size = 256+100
 print('Generating hidden data...')
 network_hidden = np.ones((data_size,data_size)).astype(np.float32)
 
@@ -239,7 +233,7 @@ feed_forward_play()
 
 
 
-print('VRAM usage: ' + estimate_vram_usage())
+print('WARNING: Opperation is very slow: \n     VRAM usage estimate: ' + estimate_vram_usage())
 
 
 # DEBUG OUTPUT STUFF
