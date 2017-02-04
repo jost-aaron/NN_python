@@ -17,9 +17,9 @@ cl_device_list = []
 cl_device_work_group_max_size = []
 
 # Network size properties
-input_size = 8
-hidden_size = 8
-output_size = 8
+input_size = 8000
+hidden_size = 8000
+output_size = 8000
 
 # Neuron Properties
 neuron_fire_thresh = 0.5
@@ -156,45 +156,176 @@ def cl_move_network_to_device(queue):
 	return [network_input_to_device,network_hidden_to_device,network_output_to_device]
 
 # Propigate values through the network using a single kernel 
-def feed_forward():
-	# Make network_output global so we can write to it
+def estimate_vram_usage():
+
+	# Number of values for hidden matrix
+	num_vals = network_hidden.shape[0] * network_hidden.shape[1]
+	
+	# Number of values for input vector
+	num_vals = num_vals + max(network_input.shape)
+	
+	# Number of values for output vector
+	num_vals = num_vals + max(network_output.shape)
+	
+	# Number of values for the local buffer 
+	num_vals = num_vals + max(network_hidden[0,:].shape)
+
+	# Size of data in bytes
+	in_bytes = num_vals*32/8
+
+	# Size of data in kBytes
+	in_Kbytes = in_bytes/1000
+
+	# Size of data in MBytes
+	in_Mbytes = in_Kbytes/1000
+
+	# Check to see what the most relivent size is
+	if (in_bytes < 1000):
+		return str(in_bytes) + ' B'
+	elif(in_Kbytes < 1000):
+		return str(in_Kbytes) + ' kB'
+	else:
+		return str(in_Mbytes) + 'MB'
+
+def verify_feed_forward():
+	global DEBUG_network_output_multiplication
+	global DEBUG_sum_bridge_after
 	global network_output
 
-	max_local_group_size = 400.0
+	row_to_check = 0
 
-	size_of_row = network_hidden.shape[1]
+	if (DEBUG_network_output_multiplication.shape[1] <= 256):
+		for i in range(0,DEBUG_network_output_multiplication.shape[0]):
+			row = DEBUG_network_output_multiplication[i,:]
+			row_sum = sum(row)
+			if (network_output[i] != row_sum):
+				print('Errors in calculation')
+				exit(1)
+		print('Calculation Verifyed!')
 
-	num_groups_row = int(size_of_row/max_local_group_size)+1
+	else:
+
+
+		# Verify data
+		found_error = 0
+		found_another_error = 0
+		for i in range(0,DEBUG_network_output_multiplication.shape[0]):
+			row = DEBUG_network_output_multiplication[i,:]
+			sum_bridge_result = DEBUG_sum_bridge_after[i,:]
+			sum_bridge_sum = sum(sum_bridge_result)
+			true_result = sum(row)
+
+			if (found_error == 0 and found_another_error == 0 and true_result != sum_bridge_sum):
+				found_error = 1
+			elif (found_error == 1 and found_another_error >= 0 and true_result != sum_bridge_sum):
+				found_another_error = found_another_error +1
+			
+
+
+			if (true_result != sum_bridge_sum and found_another_error == 0):
+				row_to_check = i
+				print('Row ' +str(row_to_check)+ ' of output: \n' + str(DEBUG_network_output_multiplication[row_to_check,:]))
+				print('Row ' + str(row_to_check) + ' sum: ' + str(sum(DEBUG_network_output_multiplication[row_to_check,:])))
+				print('Values in sum bride: \n' + str(DEBUG_sum_bridge_after[row_to_check,:]))
+				print('Sum of row ' + str(row_to_check) + ' of sum bridge: ' + str(sum(DEBUG_sum_bridge_after[row_to_check,:])))
+				print('Sum should be: ' + str(sum(DEBUG_network_output_multiplication[row_to_check,:])))
+				print('Difference in sums: ' + str(sum(DEBUG_network_output_multiplication[row_to_check,:]) - sum(DEBUG_sum_bridge_after[row_to_check,:])))
+				found_error = 1
+
+			
+		if (found_error == 0):
+			print('Calculation Verifyed!')
+		else:
+			print(str(found_another_error) +  ' more rows have errors in calculations!')
+
+def feed_forward():
+	# Make network_output global so we can write to it
+	global network_hidden
+	global network_output
+	global DEBUG_network_output_multiplication
+	global DEBUG_sum_bridge_after
 
 	# Create a command queue
 	queue = cl.CommandQueue(context)
 
-	# Move Network to device and return its pointers
-	network_input_to_device,network_hidden_to_device,network_output_to_device = cl_move_network_to_device(queue)
-	# Move hidden weights length to device
-	hidden_width_to_device = cl_array.to_device(queue,network_hidden.shape[1]*np.ones(1).astype(np.int))
-	# Move the number of work groups per row to device
-	local_groups_per_row_to_device = cl_array.to_device(queue,num_groups_row*np.ones(1).astype(np.int))
-	# Move a buffer to do sumations into the local memory of all workgroups 
-	summ_local_to_device = cl.LocalMemory(sys.getsizeof(network_hidden[1,:]))
+	# Find max local work group size
+	max_work_group_size = min(cl_device_work_group_max_size)
+
+	# calculte the number of work groups per row
+	num_work_groups_per_row = int(network_hidden.shape[1]/max_work_group_size)+1
+
+	# Initalize a variable for padding
+	remainder_padding = 0
+
+	# Make a temp variable we can add the padding to and not affect the network variable
+	padded_matrix_tmp = network_hidden
+
+	# If there was no padding added and there is only one work group per row
+	if (num_work_groups_per_row != 1):
+
+		# Calculate how much padding is necessary to fill the last work group
+		remainder_padding = abs(max_work_group_size*(num_work_groups_per_row) - network_hidden.shape[1])
+
+		# Generate a matrix with same number of rows as hidden network and number of collums defined by remainder_padding
+		insert_padding = np.zeros((network_hidden.shape[0],remainder_padding)).astype(np.float32)
+
+		# Make a temporary version of network_hidden and add padding (zeros) so the last workgroup is filled
+		padded_matrix_tmp = np.append(padded_matrix_tmp,insert_padding,axis=1)
+		
+		# Check if the zeros were added to the last work group correctly
+		average_work_group_size_test = padded_matrix_tmp.shape[1]/(1.0*num_work_groups_per_row)
+
+		if (int(average_work_group_size_test) != 256):
+			print('ERROR: Padding might now have been allocated correctly to fill up the last work group')
+			exit(1)
+
+	# create a buffer to store the sub sums for each row
+	sum_bridge = np.zeros((network_hidden.shape[0],num_work_groups_per_row)).astype(np.float32)
+
+	# move the buffer to the device
+	sum_bridge_to_device = cl_array.to_device(queue,sum_bridge.flatten())
+
+	# Move the number of sums per row
+	sums_per_row_to_device = cl_array.to_device(queue,sum_bridge.shape[1]*np.ones(1).astype(np.int))
+
+	#local_work_size = (network_hidden.shape[1]/num_work_groups_per_row,1)
+	local_work_size = (0,0)
+	if (padded_matrix_tmp.shape[1] <= 256):
+		local_work_size = (padded_matrix_tmp.shape[1],1)
+	else:
+		local_work_size = (256,1)
+
+	# Move data to device and create a pointer to it.
+	hidden_width_to_device = cl_array.to_device(queue,padded_matrix_tmp.shape[1]*np.ones(1).astype(np.int))
+	network_hidden_to_device = cl_array.to_device(queue, padded_matrix_tmp.flatten())
+	network_input_to_device = cl_array.to_device(queue, network_input)
+	network_output_to_device = cl_array.empty(queue, len(network_output), dtype=np.float32)
+	sum_local_to_device = cl.LocalMemory(sys.getsizeof(padded_matrix_tmp[1,:]))
 
 	# Specify the global and local work size
-	global_work_size = network_hidden.shape
-
-	# Unused at the moment but will be implemented later
-	#pref_wrk_gSize = cl.kernel_work_group_info.PREFERRED_WORK_GROUP_SIZE_MULTIPLE
-
-	# TODO: If collum size is bigger then max workgroup size then we need to take care of that
-	local_work_size = (network_hidden.shape[1],1)
+	global_work_size = (padded_matrix_tmp.shape[1],padded_matrix_tmp.shape[0])
 
 	# Build program
 	program = cl.Program(context,cl_load_kernel('feed_forward.c')).build()
 
 	# Call the kernel and load arguments
-	program.feed_forward(queue,global_work_size, local_work_size, hidden_width_to_device.data,local_groups_per_row_to_device.data,network_input_to_device.data , network_hidden_to_device.data,network_output_to_device.data,summ_local_to_device)
+	program.feed_forward(queue,
+								global_work_size, 
+								local_work_size, 
+								hidden_width_to_device.data,
+								sums_per_row_to_device.data,
+								network_input_to_device.data , 
+								network_hidden_to_device.data,
+								network_output_to_device.data,
+								sum_bridge_to_device.data,
+								sum_local_to_device)
 
 	# Get the output from the device
-	return network_output_to_device.get()
+	network_output = network_output_to_device.get()
+	DEBUG_network_output_multiplication = network_hidden_to_device.get()
+	DEBUG_network_output_multiplication = np.resize(DEBUG_network_output_multiplication,(padded_matrix_tmp.shape[0],padded_matrix_tmp.shape[1]))
+	DEBUG_sum_bridge_after  = sum_bridge_to_device.get()
+	DEBUG_sum_bridge_after.resize(sum_bridge.shape)
 
 # Checks to see if a neuron meets its threshold to fire
 def neuron_fire_check(val):
@@ -204,6 +335,12 @@ def neuron_fire_check(val):
 		return 1
 	else:
 		return 0
+
+
+
+DEBUG_network_output_multiplication = 0
+DEBUG_sum_bridge_after = 0
+
 
 t = Timer()
 
@@ -224,10 +361,8 @@ t.start()
 output = feed_forward()
 
 t.print_elapsed_time()
+verify_feed_forward()
 
-print(network_input)
-print(network_hidden)
-print(output)
 
 
 

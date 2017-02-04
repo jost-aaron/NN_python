@@ -1,25 +1,28 @@
-#define vec_out_access(r, c) (vec_out[(r)*width + (c)])
-#define weights_vec_access(r, c) (weights_vec[(r)*width + (c)])
+// Defined functions to access the flattened matricies as regular matricies
+#define input_matrix_access(r, c) (input_matrix[(r)*width + (c)])
+#define sum_bridge(r,c) (sum_bridge[(r)*num_sums_per_collum + (c)])
 
 __kernel void feed_forward(
-  	__global int *network_width,
-    __global int *num_work_groups_per_row,
-    __global float *input_vec,
-    __global float *weights_vec, 
-    __global float *vec_out,
-    __local float *localSums)
+    __global int *network_width,
+    __global int *sums_per_collum,
+    __global float *input_vector,
+    __global float *input_matrix, 
+    __global float *output_vector,
+    __global float *sum_bridge,
+    __local float *local_sums)
 {
   
     // Get the global position of this instance
     int global_x = get_global_id(0);
     int global_y = get_global_id(1);
 
-    // Load the network width into private memory
+    // Load the constants into private memory
     int width = *network_width;
+    int num_sums_per_collum = *sums_per_collum;
    
     // Multiply the iput values onto their row
-    // For some reason this was transposing the matrix when accesing weights_vec_access so it was switched
-    weights_vec_access(global_x,global_y) = weights_vec_access(global_y,global_x) * input_vec[global_y];
+    // For some reason this was transposing the matrix when accesing input_matrix_access so it was switched
+    input_matrix_access(global_y,global_x) = input_matrix_access(global_y,global_x) * input_vector[global_y];
 
     // Find the local id of this instance in its workgroup
     uint local_id = get_local_id(0);
@@ -27,41 +30,69 @@ __kernel void feed_forward(
     // Get the work group size
     uint group_size = get_local_size(0);
 
-    // Copy the numbers we want to use from global memory to private memory
-    localSums[local_id] = weights_vec_access(global_y,global_x);
+    // Copy the numbers we want to use from global memory to local memory
+    local_sums[local_id] = input_matrix_access(global_y,global_x);
 
-    // Move work group size info into private memory
-    int num_work_groups_per_row_private = num_work_groups_per_row;
-
-  // Loop for computing localSums
-    for (uint stride = group_size/2; stride>0; stride /=2)
+  // Loop for computing local_sums of this row
+    for (float stride = group_size/(float)2; (int)stride>0; stride /=2)
          {
-         // Waiting for each 2x2 addition into given workgroup
+         // Wait for the addition of the last stride to finish
          barrier(CLK_LOCAL_MEM_FENCE);
 
-          // Divide WorkGroup into 2 parts and add elements 2 by 2
-          // between local_id and local_id + stride
-          if (local_id < stride)
-            localSums[local_id] += localSums[local_id + stride];
+         // If stride is an odd number add the last value of the current sum to the value at local index 0 and make stride an even number
+         if (!(stride - (float)((int)(stride)) == 0) && local_id == 0){
+            local_sums[0] += local_sums[2*(uint)stride];
+            stride = (float)((int)stride);
          }
 
+         // Wait for the odd stride to be fixed
+         barrier(CLK_LOCAL_MEM_FENCE);
 
-         bool multi_work_groups = true;
+          // Divide WorkGroup into 2 parts and add elements 2 by 2 between local_id and local_id + stride
+          if (local_id < (uint)stride)
+            local_sums[local_id] += local_sums[local_id + (uint)stride];
+         }
 
-         if (multi_work_groups) {
+         // Check if we need to sum values with another work group for this row
+         if (num_sums_per_collum == 1) {
 
-               // Do this if we dont have multiple workgroups per row
-            // Write result into partialSums[nWorkGroups]
+            // Write result into the output vector
             if (local_id == 0) {
-              vec_out[global_y] = localSums[0];
+              output_vector[global_y] = local_sums[0];
             }
 
         } else{
 
-      // Wait for all workgroups to get here
-      barrier(CLK_GLOBAL_MEM_FENCE);
-      // If the workgroup does not contain the row for the sum save it into global memory so we can do another summation
-      
+          // If the local id is 0 then move the sum of this workgroup into the sum bridge in the correct collum
+          if (local_id == 0){
+            
+            // Calculate the collum we need to store this workgroups result in the sub bridge
+            int collum = (int)(global_x/group_size);
+
+            // Move the result from local memory into global memory of sub bridge
+            sum_bridge(global_y,collum) = local_sums[0];
+          }
+
+          // Wait for all workgroups to finish their local sums and put them into the sum bridge
+          barrier(CLK_GLOBAL_MEM_FENCE);
+
+          // If this instance is the leader of its row
+          if (global_y == 0) {
+            // Move number of sums per collum into local memory
+            int num_sums = *sums_per_collum;
+
+            // ititalize a value for total number of sums
+            float total_sum = 0;
+
+            // Sum the sum bridge row
+            for (int i = 0; i <= num_sums; i++) {
+                total_sum += sum_bridge(global_y,i);
+              }
+
+            // Move the result into the output vector
+            output_vector[global_y] = total_sum;
+          }
+    
+
         }
  }                  
-
