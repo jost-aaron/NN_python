@@ -8,8 +8,14 @@ import sys
 import colorama
 from colorama import Fore, Back, Style
 
+# Clear the screen
+os.system('cls')
+
 # Initilize colorama to get console colors
 colorama.init()
+
+
+DEBUG = True
 
 # OpenCL properties
 target_cl_device_type = cl.device_type.GPU
@@ -17,7 +23,7 @@ cl_device_list = []
 cl_device_work_group_max_size = []
 
 # Network size properties
-input_size = 480
+input_size = 700000
 hidden_size = 800
 output_size = 20
 
@@ -44,7 +50,18 @@ class Timer:
 		return time.time() - self.t
 	
 	def print_elapsed_time(self):
-		print(Back.BLUE+'Time Elapsed: ' +Back.YELLOW +Fore.BLACK+ ' '+ str(time.time() - self.t) + ' (Seconds) ' + Style.RESET_ALL)
+
+		seconds = time.time() - self.t
+		minutes = 0
+		while (seconds > 60):
+				minutes = minutes + 1
+				seconds = seconds - 60
+		if (minutes == 0):
+			time_elapsed = str(round(seconds,5)) + ' seconds'
+		else:
+			time_elapsed = str(minutes) + ' minutes ' + str(round(seconds,5)) + ' seconds '
+
+		print(Back.BLUE+'Time Elapsed: ' +Back.YELLOW +Fore.BLACK+ ' '+ time_elapsed + ' '+ Style.RESET_ALL)
 
 	def print_elapsed_time_msg(self,msg):
 		print(msg + str(time.time() - self.t))
@@ -98,10 +115,10 @@ def print_network_information():
 	print(Fore.BLACK + Back.WHITE+'==========================================================')
 	print('=======' + Back.GREEN + Fore.WHITE+'            Network Information            '+Back.WHITE+Fore.BLACK+'========')
 	print('==========================================================' + Style.RESET_ALL)
-	print(Fore.WHITE+Back.BLUE+'Input size: ' + Fore.BLACK+Back.YELLOW+ ' '+ str(input_size)+ ' ' +Style.RESET_ALL)
-	print(Fore.WHITE+Back.BLUE+'Hidden size: ' + Fore.BLACK+Back.YELLOW+' '+str(hidden_size)+ ' '+ Fore.BLACK+Back.YELLOW+Style.RESET_ALL)
-	print(Fore.WHITE+Back.BLUE+'Output size: ' + Fore.BLACK+Back.YELLOW+' '+str(output_size)+  ' ' +Style.RESET_ALL)
-	print(Fore.WHITE+Back.BLUE+'Number of data points: '  +Fore.BLACK+Back.YELLOW+ ' '+str(input_size + input_size*hidden_size + output_size)+ ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
+	print(Fore.WHITE+Back.BLUE+'Input size: ' + Fore.BLACK+Back.YELLOW+ ' '+ str(format(input_size,',d'))+ ' ' +Style.RESET_ALL)
+	print(Fore.WHITE+Back.BLUE+'Hidden size: ' + Fore.BLACK+Back.YELLOW+' '+str(format(hidden_size,',d'))+ ' '+ Fore.BLACK+Back.YELLOW+Style.RESET_ALL)
+	print(Fore.WHITE+Back.BLUE+'Output size: ' + Fore.BLACK+Back.YELLOW+' '+str(format(output_size,',d'))+  ' ' +Style.RESET_ALL)
+	print(Fore.WHITE+Back.BLUE+'Number of data points: '  +Fore.BLACK+Back.YELLOW+ ' '+str(format(input_size + input_size*hidden_size + output_size,',d'))+ ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
 	print(Fore.WHITE+Back.BLUE+'Estimated on device data size: ' +Fore.BLACK+Back.YELLOW+ ' '+estimate_vram_usage() + ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
 	print(Fore.BLACK + Back.WHITE+'==========================================================')
 	print('======='+ Back.GREEN + Fore.WHITE+'            Current Computation            '+Back.WHITE+Fore.BLACK+'========')
@@ -137,13 +154,14 @@ def cl_load_kernel(name):
 	kernel = open(name,'r').read() 
 	return kernel
 
+# Print out information about a specific opencl device
 def cl_print_device_information(device,number):
 	if (number == 0):
 		print(Fore.BLACK+Back.WHITE+"----------------------------------------------------------" + Style.RESET_ALL)
 	print(Back.BLUE+Fore.WHITE+"Device name:", Back.YELLOW,Fore.BLACK, device.name)
 	print(Back.BLUE+Fore.WHITE+"Device type: ", Back.YELLOW,Fore.BLACK,cl.device_type.to_string(device.type),Style.RESET_ALL)
-	print(Back.BLUE+"Device memory: ",Back.YELLOW,Fore.BLACK, device.global_mem_size//1024//1024, 'MB',Style.RESET_ALL)
-	print(Back.BLUE+"Device max clock speed: ",Back.YELLOW,Fore.BLACK, device.max_clock_frequency, 'MHz',Style.RESET_ALL)
+	print(Back.BLUE+"Device memory: ",Back.YELLOW,Fore.BLACK, format(device.global_mem_size//1024//1024,',d'), 'MB',Style.RESET_ALL)
+	print(Back.BLUE+"Device max clock speed: ",Back.YELLOW,Fore.BLACK, format(device.max_clock_frequency,',d'), 'MHz',Style.RESET_ALL)
 	print(Back.BLUE+"Device compute units: ",Back.YELLOW,Fore.BLACK, device.max_compute_units,Style.RESET_ALL)
 	print(Back.BLUE+"Device max work group size: ",Back.YELLOW,Fore.BLACK, device.max_work_group_size,Style.RESET_ALL)
 	print(Back.BLUE+"Device max work item sizes: ",Back.YELLOW,Fore.BLACK, device.max_work_item_sizes,Style.RESET_ALL)
@@ -165,7 +183,7 @@ def estimate_vram_usage():
 	num_vals = num_vals + max(network_hidden[0,:].shape)
 
 	# Size of data in bytes
-	in_bytes = num_vals*32/8
+	in_bytes = num_vals*32.0/8.0
 
 	# Size of data in kBytes
 	in_Kbytes = in_bytes/1000
@@ -177,17 +195,17 @@ def estimate_vram_usage():
 
 	# Check to see what the most relivent size is
 	if (in_bytes < 1000):
-		return str(in_bytes) + ' B'
+		return str(round(in_bytes,4)) + ' B'
 	elif(in_Kbytes < 1000):
-		return str(in_Kbytes) + ' kB'
+		return str(round(in_Kbytes,4)) + ' kB'
 	elif(in_Mbytes < 1000):
-		return str(in_Mbytes) + ' MB'
+		return str(round(in_Mbytes,4)) + ' MB'
 	else:
-		return str(in_Gbytes) + ' GB'
+		return str(round(in_Gbytes,4)) + ' GB'
 
 # Verify the calculated data Very slow for large data sets
 def verify_feed_forward():
-	print(Back.BLUE + 'Verifying Feed Forward Calculation... \n' + Fore.YELLOW + Back.RED +' WARNING! ' +Fore.BLACK +Back.YELLOW+' This is very slow for large datasets! ' + Style.RESET_ALL)
+	print(Back.RED + Fore.YELLOW + ' Debug mode enabled! '+Back.BLUE+ Fore.WHITE + ' Verifying Feed Forward Calculation... \n' + Fore.YELLOW + Back.RED +' WARNING! ' +Fore.BLACK +Back.YELLOW+' This is very slow for large datasets! ' + Style.RESET_ALL)
 	Debug_output = network_hidden
 	Debug_output_1 = np.zeros(network_hidden.shape[0]).astype(np.float32)
 	Debug_output_2 = network_output_weights
@@ -213,7 +231,7 @@ def verify_feed_forward():
 	if (sum(Output) - sum_current == 0):
 		print(Back.GREEN+' Verification Sucessfull! ' + Style.RESET_ALL)
 	else:
-		print(Back.RED+Fore.YELLOW+' ERROR! '+Back.YELLOW + Fore.BLACK+' Computation unsucessfull! ' + Style.RESET_ALL +  '\n' + Back.BLUE + 'Difference: ' +Back.YELLOW +Fore.BLACK+ str(sum(Output)-sum_current) + Style.RESET_ALL)
+		print(Back.RED+Fore.YELLOW+' ERROR! '+Back.YELLOW + Fore.BLACK+' Computation unsucessfull! ' + Style.RESET_ALL +  '\n' + Back.BLUE + 'Difference: ' +Back.YELLOW +Fore.BLACK+ str(sum(Output)-sum_current) + ' ' + Style.RESET_ALL)
 
 # forward propigate the input data through the network
 def feed_forward(input_vec,input_matrix,time):
@@ -316,10 +334,13 @@ t = Timer()
 
 print(Back.BLUE+'Generating input data...'+ Style.RESET_ALL)
 load_input_data('random')
+
 print(Back.BLUE+'Creating the data structure...'+ Style.RESET_ALL)
 init_data_structure()
+
 print(Back.BLUE+'Finding OpenCL Devices...'+ Style.RESET_ALL)
 cl_find_devices()
+
 print(Back.BLUE+'Generating OpenCL context...'+ Style.RESET_ALL)
 context = cl_get_context()
 
@@ -336,10 +357,11 @@ Output = feed_forward(network_input,network_hidden,0)
 t.print_elapsed_time()
 
 
-t.reset()
-
-verify_feed_forward()
-t.print_elapsed_time()
+# If debugging mode is inabled verify the opencl calculation
+if (DEBUG):
+	t.reset()
+	verify_feed_forward()
+	t.print_elapsed_time()
 
 
 
