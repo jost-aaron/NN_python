@@ -101,7 +101,7 @@ __kernel void feed_forward(
           barrier(CLK_GLOBAL_MEM_FENCE);
 
           // If this instance is the leader of its row
-          if (global_y == 0) {
+          if (global_x == 0) {
             // Move number of sums per collum into local memory
             uint num_sums = *sums_per_collum;
 
@@ -109,7 +109,7 @@ __kernel void feed_forward(
             float total_sum = 0;
 
             // Sum the sum bridge row
-            for (uint i = 0; i <= num_sums; i++) {
+            for (uint i = 0; i < num_sums; i++) {
                 total_sum += sum_bridge(global_y,i);
               }
 
