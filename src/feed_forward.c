@@ -1,3 +1,24 @@
+
+// Documentation of kernel
+
+//   data structure of network this kernel calculates is as follows:
+//   -this example:
+//   3 input neurons
+//   2 hidden neurons
+//   4 output neurons
+//   
+//   input:           Hidden:
+//   
+//   | Input_1 |    opp   |   w1   w2  w3  |   -->      |  intermediate_1  |  opp   | w1  w2 |  -->  | Output_1 |
+//   | Input_2 |    opp   |   w1   w2  w3  |   -->      |  intermediate_2  |  opp   | w1  w2 |  -->  | Output_2 |
+//   | Input_3 |    opp   |   w1   w2  w3  |                                        | w1  w2 |  -->  | Output_3 |
+//                                                                                  | w1  w2 |  -->  | Output_4 |
+
+//   The kernel will multiply each collum of the weight matrix by the input value at the same index.
+//   Note: w1 corrisponds to the a input neuron at the index of its number and each w1 and w2 is independant even
+ //        though they have the same name
+
+
 // Defined functions to access the flattened matricies as regular matricies
 #define input_matrix_access(r, c) (input_matrix[(r)*width + (c)])
 #define sum_bridge(r,c) (sum_bridge[(r)*num_sums_per_collum + (c)])
@@ -22,7 +43,7 @@ __kernel void feed_forward(
    
     // Multiply the iput values onto their row
     // For some reason this was transposing the matrix when accesing input_matrix_access so it was switched
-    input_matrix_access(global_y,global_x) = input_matrix_access(global_y,global_x) * input_vector[global_y];
+    input_matrix_access(global_y,global_x) = input_matrix_access(global_y,global_x) * input_vector[global_x];
 
     // Find the local id of this instance in its workgroup
     uint local_id = get_local_id(0);

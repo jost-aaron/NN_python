@@ -17,9 +17,9 @@ cl_device_list = []
 cl_device_work_group_max_size = []
 
 # Network size properties
-input_size = 8000
-hidden_size = 8000
-output_size = 8000
+input_size = 7
+hidden_size = 8
+output_size = 2
 
 # Neuron Properties
 neuron_fire_thresh = 0.5
@@ -29,6 +29,7 @@ neuron_fire_thresh = 0.5
 network_input = []
 network_hidden = []
 network_output = []
+network_output_weights = []
 
 # Timer Class for having instances of a timer for benchmarking
 class Timer:
@@ -60,8 +61,10 @@ def debug_output(message):
 def init_data_structure():
 	global network_hidden
 	global network_output
+	global network_output_weights
 	network_hidden = np.ones((hidden_size,input_size)).astype(np.float32)
 	network_output = (np.zeros(output_size)).astype(np.float32)
+	network_output_weights = np.ones((output_size,hidden_size)).astype(np.float32)
 
 # Load some input data to feed to the network
 def load_input_data(data_type):
@@ -103,40 +106,6 @@ def cl_load_kernel(name):
 	kernel = open(name,'r').read() 
 	return kernel
 
-# Multiply 2 vectors with opencl
-def cl_mult_2_vec(input_vec_1,input_vec_2):
-
-	queue = cl.CommandQueue(context)
-
-	vec_1_to_device = cl_array.to_device(queue, input_vec_1)
-	vec_2_to_device = cl_array.to_device(queue,input_vec_2)
-	output_to_device = cl_array.empty_like(vec_1_to_device,queue)
-
-	program = cl.Program(context,cl_load_kernel('component_multiply.c')).build()
-
-	program.component_multiply(queue, input_vec_1.shape, None, vec_1_to_device.data, vec_2_to_device.data, output_to_device.data)
-
-	output_vec = output_to_device.get()
-
-	return output_vec
-
-# Add 2 vectors with opencl
-def cl_add_2_vec(input_vec_1,input_vec_2):
-
-	queue = cl.CommandQueue(context)
-
-	vec_1_to_device = cl_array.to_device(queue, input_vec_1)
-	vec_2_to_device = cl_array.to_device(queue,input_vec_2)
-	output_to_device = cl_array.empty_like(vec_1_to_device,queue)
-
-	program = cl.Program(context,cl_load_kernel('component_sum.c')).build()
-
-	program.component_sum(queue, input_vec_1.shape, None, vec_1_to_device.data, vec_2_to_device.data, output_to_device.data)
-
-	output_vec = output_to_device.get()
-
-	return output_vec
-
 def cl_print_device_information(device):
 	print("----------------------------------------------------------")
 	print("Device name:", device.name)
@@ -147,13 +116,6 @@ def cl_print_device_information(device):
 	print("Device max work group size:", device.max_work_group_size)
 	print("Device max work item sizes:", device.max_work_item_sizes)
 	print("----------------------------------------------------------")
-
-def cl_move_network_to_device(queue):
-	network_hidden_to_device = cl_array.to_device(queue, network_hidden.flatten('F'))
-	network_input_to_device = cl_array.to_device(queue, network_input)
-	network_output_to_device = cl_array.empty(queue, len(network_output), dtype=np.float32)
-
-	return [network_input_to_device,network_hidden_to_device,network_output_to_device]
 
 # Propigate values through the network using a single kernel 
 def estimate_vram_usage():
@@ -238,38 +200,37 @@ def verify_feed_forward():
 		else:
 			print(str(found_another_error) +  ' more rows have errors in calculations!')
 
-def feed_forward():
-	# Make network_output global so we can write to it
-	global network_hidden
-	global network_output
-	global DEBUG_network_output_multiplication
-	global DEBUG_sum_bridge_after
+def feed_forward(input_vec,input_matrix,time):
+
+	global network_output_weights
 
 	# Create a command queue
 	queue = cl.CommandQueue(context)
+	print('Input Vector: \n' + str(input_vec))
+	print('Weights: with size \n'+ str(input_matrix))
 
 	# Find max local work group size
 	max_work_group_size = min(cl_device_work_group_max_size)
 
 	# calculte the number of work groups per row
-	num_work_groups_per_row = int(network_hidden.shape[1]/max_work_group_size)+1
+	num_work_groups_per_row = int(input_matrix.shape[1]/max_work_group_size)+1
 
 	# Initalize a variable for padding
 	remainder_padding = 0
 
 	# Make a temp variable we can add the padding to and not affect the network variable
-	padded_matrix_tmp = network_hidden
+	padded_matrix_tmp = input_matrix
 
 	# If there was no padding added and there is only one work group per row
 	if (num_work_groups_per_row != 1):
 
 		# Calculate how much padding is necessary to fill the last work group
-		remainder_padding = abs(max_work_group_size*(num_work_groups_per_row) - network_hidden.shape[1])
+		remainder_padding = abs(max_work_group_size*(num_work_groups_per_row) - input_matrix.shape[1])
 
 		# Generate a matrix with same number of rows as hidden network and number of collums defined by remainder_padding
-		insert_padding = np.zeros((network_hidden.shape[0],remainder_padding)).astype(np.float32)
+		insert_padding = np.zeros((input_matrix.shape[0],remainder_padding)).astype(np.float32)
 
-		# Make a temporary version of network_hidden and add padding (zeros) so the last workgroup is filled
+		# Make a temporary version of input_matrix and add padding (zeros) so the last workgroup is filled
 		padded_matrix_tmp = np.append(padded_matrix_tmp,insert_padding,axis=1)
 		
 		# Check if the zeros were added to the last work group correctly
@@ -280,7 +241,7 @@ def feed_forward():
 			exit(1)
 
 	# create a buffer to store the sub sums for each row
-	sum_bridge = np.zeros((network_hidden.shape[0],num_work_groups_per_row)).astype(np.float32)
+	sum_bridge = np.zeros((input_matrix.shape[0],num_work_groups_per_row)).astype(np.float32)
 
 	# move the buffer to the device
 	sum_bridge_to_device = cl_array.to_device(queue,sum_bridge.flatten())
@@ -288,7 +249,7 @@ def feed_forward():
 	# Move the number of sums per row
 	sums_per_row_to_device = cl_array.to_device(queue,sum_bridge.shape[1]*np.ones(1).astype(np.int))
 
-	#local_work_size = (network_hidden.shape[1]/num_work_groups_per_row,1)
+	#local_work_size = (input_matrix.shape[1]/num_work_groups_per_row,1)
 	local_work_size = (0,0)
 	if (padded_matrix_tmp.shape[1] <= 256):
 		local_work_size = (padded_matrix_tmp.shape[1],1)
@@ -298,8 +259,8 @@ def feed_forward():
 	# Move data to device and create a pointer to it.
 	hidden_width_to_device = cl_array.to_device(queue,padded_matrix_tmp.shape[1]*np.ones(1).astype(np.int))
 	network_hidden_to_device = cl_array.to_device(queue, padded_matrix_tmp.flatten())
-	network_input_to_device = cl_array.to_device(queue, network_input)
-	network_output_to_device = cl_array.empty(queue, len(network_output), dtype=np.float32)
+	network_input_to_device = cl_array.to_device(queue, input_vec)
+	opperation_output_to_device = cl_array.empty(queue, input_matrix.shape[0], dtype=np.float32)
 	sum_local_to_device = cl.LocalMemory(sys.getsizeof(padded_matrix_tmp[1,:]))
 
 	# Specify the global and local work size
@@ -316,30 +277,16 @@ def feed_forward():
 								sums_per_row_to_device.data,
 								network_input_to_device.data , 
 								network_hidden_to_device.data,
-								network_output_to_device.data,
+								opperation_output_to_device.data,
 								sum_bridge_to_device.data,
 								sum_local_to_device)
 
 	# Get the output from the device
-	network_output = network_output_to_device.get()
-	DEBUG_network_output_multiplication = network_hidden_to_device.get()
-	DEBUG_network_output_multiplication = np.resize(DEBUG_network_output_multiplication,(padded_matrix_tmp.shape[0],padded_matrix_tmp.shape[1]))
-	DEBUG_sum_bridge_after  = sum_bridge_to_device.get()
-	DEBUG_sum_bridge_after.resize(sum_bridge.shape)
-
-# Checks to see if a neuron meets its threshold to fire
-def neuron_fire_check(val):
-	# Trigger function
-	out = np.tanh(val)
-	if out >= neuron_fire_thresh:
-		return 1
+	if (time == 1):
+		return opperation_output_to_device.get()
 	else:
-		return 0
+		return feed_forward(opperation_output_to_device.get(),network_output_weights,1)
 
-
-
-DEBUG_network_output_multiplication = 0
-DEBUG_sum_bridge_after = 0
 
 
 t = Timer()
@@ -350,18 +297,19 @@ init_data_structure()
 cl_find_devices()
 context = cl_get_context()
 
-
-for i in range(0,network_hidden.shape[0]):
-	network_hidden[i,:] = i
-
-
-
 t.start()
 
-output = feed_forward()
+
+Output = feed_forward(network_input,network_hidden,0)
+print('feed forward function output: \n'+str(Output))
+
+
+
+
+
 
 t.print_elapsed_time()
-verify_feed_forward()
+
 
 
 
