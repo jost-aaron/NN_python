@@ -14,7 +14,7 @@
 //   
 //   | Input_1 |          |   w1   w2  w3  |   -->      |  intermediate_1  |        | w1  w2 |  -->  | Output_1 |
 //   | Input_2 |    OPP   |   w1   w2  w3  |   -->      |  intermediate_2  |  OPP   | w1  w2 |  -->  | Output_2 |
-//   | Input_3 |          |   w1   w2  w3  |                                        | w1  w2 |  -->  | Output_3 |
+//   | Input_3 |                                                                    | w1  w2 |  -->  | Output_3 |
 //                                                                                  | w1  w2 |  -->  | Output_4 |
 
 // OPP Definition:
