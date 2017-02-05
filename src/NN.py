@@ -7,19 +7,15 @@ import time
 import sys
 
 
-
-# Debug properties
-DEBUG = True
-
 # OpenCL properties
 target_cl_device_type = cl.device_type.GPU
 cl_device_list = []
 cl_device_work_group_max_size = []
 
 # Network size properties
-input_size = 7
-hidden_size = 8
-output_size = 2
+input_size = 255
+hidden_size = 255
+output_size = 20
 
 # Neuron Properties
 neuron_fire_thresh = 0.5
@@ -52,11 +48,6 @@ class Timer:
 	def reset(self):
 		self.t = time.time()
 
-# Easy way to output dubug information
-def debug_output(message):
-	if DEBUG:
-		print(message)
-
 # Create the hidden and output data structure with numpy arrays
 def init_data_structure():
 	global network_hidden
@@ -73,6 +64,18 @@ def load_input_data(data_type):
 		network_input = 10*np.ones(input_size).astype(np.float32)
 	elif data_type == 'from':
 		return 0
+
+def print_network_information():
+	print('==========================================================')
+	print('=======            Network Information            ========')
+	print('==========================================================')
+	print('Input size: ' + str(input_size))
+	print('Hidden size: ' + str(hidden_size))
+	print('Output size: ' + str(output_size))
+	print('Number of data points: '  + str(input_size + input_size*hidden_size + output_size))
+	print('==========================================================')
+	print('=======            Current Computation            ========')
+	print('==========================================================')
 
 # Find and cataloge all of the opencl compatable devices on the system
 def cl_find_devices():
@@ -91,9 +94,6 @@ def cl_find_devices():
 	print('Number of OpenCl devices found: ' + str(len(cl_device_list)))
 	for device in cl_device_list:
 		cl_print_device_information(device)
-	print('==========================================================')
-	print('=======            Current Computation            ========')
-	print('==========================================================')
 
 # Get the context for a given device
 def cl_get_context():
@@ -149,65 +149,45 @@ def estimate_vram_usage():
 	else:
 		return str(in_Mbytes) + 'MB'
 
+# Verify the calculated data Very slow for large data sets
 def verify_feed_forward():
-	global DEBUG_network_output_multiplication
-	global DEBUG_sum_bridge_after
-	global network_output
+	print('Verifying calculation: \n WARNING: this is very slow for large datasets!')
+	Debug_output = network_hidden
+	Debug_output_1 = np.zeros(network_hidden.shape[0]).astype(np.float32)
+	Debug_output_2 = network_output_weights
+	Debug_output_3 = np.zeros(network_output_weights.shape[0]).astype(np.float32)
 
-	row_to_check = 0
+	print('Verification opperation (1/4)...')
+	for i in range(0,len(network_input)):
+		Debug_output[:,i] = Debug_output[:,i] * network_input[i]
+	print('Verification opperation (2/4)...')	
+	for i in range(0,network_hidden.shape[0]):
+		Debug_output_1[i] = sum(Debug_output[i,:])
+	print('Verification opperation (3/4)...')
+	for i in range(0,len(Debug_output_1)):
+		Debug_output_2[:,i] = Debug_output_2[:,i] * Debug_output_1[i]
+	print('Verification opperation (4/4)...')
+	for i in range(0,network_output_weights.shape[0]):
+		Debug_output_3[i] = sum(Debug_output_2[i,:])
 
-	if (DEBUG_network_output_multiplication.shape[1] <= 256):
-		for i in range(0,DEBUG_network_output_multiplication.shape[0]):
-			row = DEBUG_network_output_multiplication[i,:]
-			row_sum = sum(row)
-			if (network_output[i] != row_sum):
-				print('Errors in calculation')
-				exit(1)
-		print('Calculation Verifyed!')
+	print(Debug_output_3)
+	sum_current = sum(Debug_output_3)
 
+	
+	if (sum(Output) - sum_current == 0):
+		print('Computation sucessfull!')
 	else:
+		print('Computation unsucessfull: \n Difference: ' + str(sum(Output)-sum_current))
 
-
-		# Verify data
-		found_error = 0
-		found_another_error = 0
-		for i in range(0,DEBUG_network_output_multiplication.shape[0]):
-			row = DEBUG_network_output_multiplication[i,:]
-			sum_bridge_result = DEBUG_sum_bridge_after[i,:]
-			sum_bridge_sum = sum(sum_bridge_result)
-			true_result = sum(row)
-
-			if (found_error == 0 and found_another_error == 0 and true_result != sum_bridge_sum):
-				found_error = 1
-			elif (found_error == 1 and found_another_error >= 0 and true_result != sum_bridge_sum):
-				found_another_error = found_another_error +1
-			
-
-
-			if (true_result != sum_bridge_sum and found_another_error == 0):
-				row_to_check = i
-				print('Row ' +str(row_to_check)+ ' of output: \n' + str(DEBUG_network_output_multiplication[row_to_check,:]))
-				print('Row ' + str(row_to_check) + ' sum: ' + str(sum(DEBUG_network_output_multiplication[row_to_check,:])))
-				print('Values in sum bride: \n' + str(DEBUG_sum_bridge_after[row_to_check,:]))
-				print('Sum of row ' + str(row_to_check) + ' of sum bridge: ' + str(sum(DEBUG_sum_bridge_after[row_to_check,:])))
-				print('Sum should be: ' + str(sum(DEBUG_network_output_multiplication[row_to_check,:])))
-				print('Difference in sums: ' + str(sum(DEBUG_network_output_multiplication[row_to_check,:]) - sum(DEBUG_sum_bridge_after[row_to_check,:])))
-				found_error = 1
-
-			
-		if (found_error == 0):
-			print('Calculation Verifyed!')
-		else:
-			print(str(found_another_error) +  ' more rows have errors in calculations!')
-
+# forward propigate the input data through the network
 def feed_forward(input_vec,input_matrix,time):
 
 	global network_output_weights
 
 	# Create a command queue
 	queue = cl.CommandQueue(context)
-	print('Input Vector: \n' + str(input_vec))
-	print('Weights: with size \n'+ str(input_matrix))
+	#print('Input Vector: \n' + str(input_vec))
+	#print('Weights: \n'+ str(input_matrix))
 
 	# Find max local work group size
 	max_work_group_size = min(cl_device_work_group_max_size)
@@ -257,7 +237,7 @@ def feed_forward(input_vec,input_matrix,time):
 		local_work_size = (256,1)
 
 	# Move data to device and create a pointer to it.
-	hidden_width_to_device = cl_array.to_device(queue,padded_matrix_tmp.shape[1]*np.ones(1).astype(np.int))
+	hidden_width_to_device = cl_array.to_device(queue,padded_matrix_tmp.shape[1]*np.ones(1).astype(np.uint))
 	network_hidden_to_device = cl_array.to_device(queue, padded_matrix_tmp.flatten())
 	network_input_to_device = cl_array.to_device(queue, input_vec)
 	opperation_output_to_device = cl_array.empty(queue, input_matrix.shape[0], dtype=np.float32)
@@ -288,30 +268,35 @@ def feed_forward(input_vec,input_matrix,time):
 		return feed_forward(opperation_output_to_device.get(),network_output_weights,1)
 
 
-
+# initalize a timer object to time the calculation
 t = Timer()
 
-
+print('Generating input data...')
 load_input_data('random')
+print('Creating the data structure...')
 init_data_structure()
+print('Finding OpenCL')
 cl_find_devices()
+print('Generating OpenCL context...')
 context = cl_get_context()
+
+print_network_information()
 
 t.start()
 
-
+print('Feeding forward network...')
 Output = feed_forward(network_input,network_hidden,0)
-print('feed forward function output: \n'+str(Output))
-
-
-
-
+#print('feed forward function output: \n'+str(Output))
+print(Output)
 
 
 t.print_elapsed_time()
 
+print('Verifying feed forward...')
+t.reset()
 
-
+verify_feed_forward()
+t.print_elapsed_time()
 
 
 

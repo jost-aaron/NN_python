@@ -6,17 +6,20 @@
 //   3 input neurons
 //   2 hidden neurons
 //   4 output neurons
+
+//          First instance of kernel                            Second instance of kernel
+// |-----------------------------------------|        |------------------------------------------|
 //   
-//   input:           Hidden:
+//   Input vector:          Hidden weights:           Result from instance 1:     Output Weights:    Output vector:
 //   
-//   | Input_1 |    opp   |   w1   w2  w3  |   -->      |  intermediate_1  |  opp   | w1  w2 |  -->  | Output_1 |
-//   | Input_2 |    opp   |   w1   w2  w3  |   -->      |  intermediate_2  |  opp   | w1  w2 |  -->  | Output_2 |
-//   | Input_3 |    opp   |   w1   w2  w3  |                                        | w1  w2 |  -->  | Output_3 |
+//   | Input_1 |          |   w1   w2  w3  |   -->      |  intermediate_1  |        | w1  w2 |  -->  | Output_1 |
+//   | Input_2 |    OPP   |   w1   w2  w3  |   -->      |  intermediate_2  |  OPP   | w1  w2 |  -->  | Output_2 |
+//   | Input_3 |          |   w1   w2  w3  |                                        | w1  w2 |  -->  | Output_3 |
 //                                                                                  | w1  w2 |  -->  | Output_4 |
 
-//   The kernel will multiply each collum of the weight matrix by the input value at the same index.
-//   Note: w1 corrisponds to the a input neuron at the index of its number and each w1 and w2 is independant even
- //        though they have the same name
+// OPP Definition:
+//   The kernel will multiply each collum of the weight matrix by the input value at the same index as the weights collum.
+//   Note: w1 corrisponds to the a input neuron at the index of its number and each w1 and w2 is independant even though they have the same name
 
 
 // Defined functions to access the flattened matricies as regular matricies
@@ -24,8 +27,8 @@
 #define sum_bridge(r,c) (sum_bridge[(r)*num_sums_per_collum + (c)])
 
 __kernel void feed_forward(
-    __global int *network_width,
-    __global int *sums_per_collum,
+    __global uint *network_width,
+    __global uint *sums_per_collum,
     __global float *input_vector,
     __global float *input_matrix, 
     __global float *output_vector,
@@ -34,12 +37,12 @@ __kernel void feed_forward(
 {
   
     // Get the global position of this instance
-    int global_x = get_global_id(0);
-    int global_y = get_global_id(1);
+    uint global_x = get_global_id(0);
+    uint global_y = get_global_id(1);
 
     // Load the constants into private memory
-    int width = *network_width;
-    int num_sums_per_collum = *sums_per_collum;
+    uint width = *network_width;
+    uint num_sums_per_collum = *sums_per_collum;
    
     // Multiply the iput values onto their row
     // For some reason this was transposing the matrix when accesing input_matrix_access so it was switched
@@ -88,7 +91,7 @@ __kernel void feed_forward(
           if (local_id == 0){
             
             // Calculate the collum we need to store this workgroups result in the sub bridge
-            int collum = (int)(global_x/group_size);
+            uint collum = (int)(global_x/group_size);
 
             // Move the result from local memory into global memory of sub bridge
             sum_bridge(global_y,collum) = local_sums[0];
@@ -100,13 +103,13 @@ __kernel void feed_forward(
           // If this instance is the leader of its row
           if (global_y == 0) {
             // Move number of sums per collum into local memory
-            int num_sums = *sums_per_collum;
+            uint num_sums = *sums_per_collum;
 
             // ititalize a value for total number of sums
             float total_sum = 0;
 
             // Sum the sum bridge row
-            for (int i = 0; i <= num_sums; i++) {
+            for (uint i = 0; i <= num_sums; i++) {
                 total_sum += sum_bridge(global_y,i);
               }
 
