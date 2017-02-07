@@ -27,9 +27,9 @@ cl_device_list = []
 cl_device_work_group_max_size = []
 
 # Network size properties
-input_size = 65000
-hidden_size = 800
-output_size = 300
+input_size = 1000000
+hidden_size = 500
+output_size = 3000
 
 # Neuron Properties
 neuron_fire_thresh = 0.5
@@ -426,10 +426,25 @@ def cl_sum_rows(input_matrix):
 	output_vector_to_device = cl_array.empty(queue,input_matrix.shape[0],dtype=np.float32)
 
 	global_work_size = (input_matrix.shape[1],input_matrix.shape[0])
+	#print('Global work size: ',global_work_size)
+	#print('input_matrix size: ',input_matrix.shape)
+	if (input_matrix.shape[1] > 256):
+		size_1 = int(input_matrix.shape[1]/2)
+		size_2 = input_matrix.shape[1]-size_1
+		#print('Size_1,Size_2: ',size_1,' ',size_2)
+		part_1 = cl_sum_rows(input_matrix[:,0:size_1])
+		part_2 = cl_sum_rows(input_matrix[:,size_1:input_matrix.shape[1]])
+		#print('Part 1 shape: ',part_1.shape)
+		#print('Part 2 shape: ',part_2.shape)
+		togther=np.append(part_1[None].T,part_2[None].T,axis=1)
+
+		return cl_sum_rows(togther)
+
 	local_work_size = (input_matrix.shape[1],1)
 
-	#print('Global work size: ',global_work_size)
 	#print('Local work size: ',local_work_size)
+
+
 
 	program = cl.Program(context,cl_load_kernel('sum_rows.c')).build()
 
