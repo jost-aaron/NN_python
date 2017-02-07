@@ -27,9 +27,9 @@ cl_device_list = []
 cl_device_work_group_max_size = []
 
 # Network size properties
-input_size = 2234
-hidden_size = 2573
-output_size = 2603
+input_size = 255
+hidden_size = 257
+output_size = 260
 
 # Neuron Properties
 neuron_fire_thresh = 0.5
@@ -243,9 +243,11 @@ def verify_feed_forward():
 			if (error_found <= num_allowed_errors_disp):
 				print(Back.RED,Fore.YELLOW,'          Value Error!         ',Style.RESET_ALL)
 				error_padding = 12
-				print(Back.BLUE,Fore.WHITE,'      index:   ',Back.YELLOW,Fore.BLACK,index,' '*(error_padding-len(str(index))),Style.RESET_ALL)
-				print(Back.BLUE,Fore.WHITE,'   With value: ',Back.YELLOW,Fore.BLACK, element,' '*(error_padding-len(str(element))),Style.RESET_ALL)
-				print(Back.BLUE,Fore.WHITE,'Expected value:',Back.YELLOW,Fore.BLACK,Debug_output_3[index],' '*(error_padding-len(str(Debug_output_3[index]))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE,'      index:   ',Back.YELLOW,Fore.BLACK,format(int(index),',d'),' '*(error_padding-len(str(format(int(index),',d')))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE,'   With value: ',Back.YELLOW,Fore.BLACK, format(int(element),',d'),' '*(error_padding-len(str(format(int(element),',d')))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE,'Expected value:',Back.YELLOW,Fore.BLACK,format(int(Debug_output_3[index]),',d'),' '*(error_padding-len(str(format(int(Debug_output_3[index]),',d')))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE,'   Difference: ',Back.YELLOW,Fore.BLACK,format(int(abs(Debug_output_3[index]-element)),',d'),' '*(error_padding-len(str(format(int(abs(Debug_output_3[index]-element)),',d')))),Style.RESET_ALL)
+
 			error_found = error_found + 1
 		index = index + 1
 	if (error_found > num_allowed_errors_disp):
@@ -260,6 +262,7 @@ def verify_feed_forward():
 	else:
 		print(Back.RED,Fore.YELLOW,'           Error Impact                     ',Style.RESET_ALL)
 		error_padding = 15
+		error_found = error_found-1
 		print(Back.BLUE,Fore.WHITE, '     Number of errors:   ', Back.YELLOW,Fore.BLACK,format(error_found,',d'),' '*(error_padding-len(str(format(error_found,',d')))),Style.RESET_ALL)
 		print(Back.BLUE,Fore.WHITE, ' Sum of GPU Calculation: ' ,Back.YELLOW,Fore.BLACK,format(int(sum_output),',d'),' '*(error_padding-len(str(format(int(sum_output),',d')))),Style.RESET_ALL)
 		print(Back.BLUE,Fore.WHITE, 'Verifycation Calculation:' ,Back.YELLOW,Fore.BLACK,format(int(sum_current),',d'),' '*(error_padding-len(str(format(int(sum_current),',d')))),Style.RESET_ALL)
