@@ -75,7 +75,14 @@ __kernel void feed_forward(
           // Divide WorkGroup into 2 parts and add elements 2 by 2 between local_id and local_id + stride
           if (local_id < (uint)stride)
             local_sums[local_id] += local_sums[local_id + (uint)stride];
+
+          barrier(CLK_LOCAL_MEM_FENCE);
          }
+
+         barrier(CLK_LOCAL_MEM_FENCE);
+
+
+
 
          // Check if we need to sum values with another work group for this row
          if (num_sums_per_collum == 1) {
@@ -84,6 +91,7 @@ __kernel void feed_forward(
             if (local_id == 0) {
               output_vector[global_y] = local_sums[0];
             }
+            barrier(CLK_LOCAL_MEM_FENCE);
 
         } else{
 
@@ -97,8 +105,9 @@ __kernel void feed_forward(
             sum_bridge(global_y,collum) = local_sums[0];
           }
 
+
           // Wait for all workgroups to finish their local sums and put them into the sum bridge
-          barrier(CLK_GLOBAL_MEM_FENCE);
+          //barrier(CLK_GLOBAL_MEM_FENCE);
 
           // If this instance is the leader of its row
           if (global_x == 0) {
@@ -115,8 +124,12 @@ __kernel void feed_forward(
 
             // Move the result into the output vector
             output_vector[global_y] = total_sum;
+
           }
     
 
         }
+
+
+
  }                  

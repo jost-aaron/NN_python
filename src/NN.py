@@ -7,9 +7,13 @@ import time
 import sys
 import colorama
 from colorama import Fore, Back, Style
+import platform
 
 # Clear the screen
-os.system('cls')
+if (platform.system() == 'Windows'):
+	os.system('cls')
+else:
+	os.system('clear')
 
 # Initilize colorama to get console colors
 colorama.init()
@@ -23,9 +27,9 @@ cl_device_list = []
 cl_device_work_group_max_size = []
 
 # Network size properties
-input_size = 700000
-hidden_size = 800
-output_size = 20
+input_size = 2234
+hidden_size = 2573
+output_size = 2603
 
 # Neuron Properties
 neuron_fire_thresh = 0.5
@@ -82,7 +86,7 @@ def init_data_structure():
 def load_input_data(data_type):
 	global network_input
 	if data_type == 'random':
-		network_input = 10*np.ones(input_size).astype(np.float32)
+		network_input = 1*np.ones(input_size).astype(np.float32)
 	elif data_type == 'from':
 		return 0
 
@@ -113,7 +117,7 @@ def print_color_fore(text,color):
 def print_network_information():
 	# Len 59
 	print(Fore.BLACK + Back.WHITE+'==========================================================')
-	print('=======' + Back.GREEN + Fore.WHITE+'            Network Information            '+Back.WHITE+Fore.BLACK+'========')
+	print('=======' + Back.GREEN + Fore.BLACK+'            Network Information            '+Back.WHITE+Fore.BLACK+'========')
 	print('==========================================================' + Style.RESET_ALL)
 	print(Fore.WHITE+Back.BLUE+'Input size: ' + Fore.BLACK+Back.YELLOW+ ' '+ str(format(input_size,',d'))+ ' ' +Style.RESET_ALL)
 	print(Fore.WHITE+Back.BLUE+'Hidden size: ' + Fore.BLACK+Back.YELLOW+' '+str(format(hidden_size,',d'))+ ' '+ Fore.BLACK+Back.YELLOW+Style.RESET_ALL)
@@ -121,7 +125,7 @@ def print_network_information():
 	print(Fore.WHITE+Back.BLUE+'Number of data points: '  +Fore.BLACK+Back.YELLOW+ ' '+str(format(input_size + input_size*hidden_size + output_size,',d'))+ ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
 	print(Fore.WHITE+Back.BLUE+'Estimated on device data size: ' +Fore.BLACK+Back.YELLOW+ ' '+estimate_vram_usage() + ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
 	print(Fore.BLACK + Back.WHITE+'==========================================================')
-	print('======='+ Back.GREEN + Fore.WHITE+'            Current Computation            '+Back.WHITE+Fore.BLACK+'========')
+	print('======='+ Back.GREEN + Fore.BLACK+'            Current Computation            '+Back.WHITE+Fore.BLACK+'========')
 	print('=========================================================='+ Style.RESET_ALL)
 
 # Find and cataloge all of the opencl compatable devices on the system
@@ -136,7 +140,7 @@ def cl_find_devices():
 			cl_device_work_group_max_size.append(device.max_work_group_size)
 			
 	print(Fore.BLACK + Back.WHITE+'==========================================================')
-	print('======='+ Back.GREEN + Fore.WHITE+'      OpenCL Devices on this platform      '+Back.WHITE+Fore.BLACK+'========')
+	print('======='+ Back.GREEN + Fore.BLACK+'      OpenCL Devices on this platform      '+Back.WHITE+Fore.BLACK+'========')
 	print('=========================================================='+ Style.RESET_ALL)
 	print(Back.BLUE + Fore.WHITE+'Number of OpenCl devices found: '+ Back.YELLOW + Fore.BLACK +' '+ str(len(cl_device_list)) + ' ' + Style.RESET_ALL)
 	for device in cl_device_list:
@@ -205,7 +209,7 @@ def estimate_vram_usage():
 
 # Verify the calculated data Very slow for large data sets
 def verify_feed_forward():
-	print(Back.RED + Fore.YELLOW + ' Debug mode enabled! '+Back.BLUE+ Fore.WHITE + ' Verifying Feed Forward Calculation... \n' + Fore.YELLOW + Back.RED +' WARNING! ' +Fore.BLACK +Back.YELLOW+' This is very slow for large datasets! ' + Style.RESET_ALL)
+	print(Back.RED + Fore.YELLOW + ' Debug mode enabled! '+Back.BLUE+ Fore.WHITE + ' Verifying Feed Forward Calculation... \n' + Fore.YELLOW + Back.RED +' Warning! ' +Fore.BLACK +Back.YELLOW+' This is very slow for large datasets! ' + Style.RESET_ALL)
 	Debug_output = network_hidden
 	Debug_output_1 = np.zeros(network_hidden.shape[0]).astype(np.float32)
 	Debug_output_2 = network_output_weights
@@ -224,14 +228,42 @@ def verify_feed_forward():
 	for i in range(0,network_output_weights.shape[0]):
 		Debug_output_3[i] = sum(Debug_output_2[i,:])
 
-	#print(Debug_output_3)
-	sum_current = sum(Debug_output_3)
+	index = 0
+	error_found = 0
+	num_allowed_errors_disp = 5
+	for element in Output.tolist():
+		if element != Debug_output_3[index]:
+			if (error_found == 0):
+				print(Back.RED+Fore.YELLOW+' Error! '+Back.YELLOW + Fore.BLACK+' Computation unsucessfull! ' + Style.RESET_ALL)
 
+				print(Fore.BLACK + Back.WHITE+'===================================')
+				print('======='+ Back.RED + Fore.YELLOW+'    Error Report    '+Back.WHITE+Fore.BLACK+'========')
+				print('==================================='+ Style.RESET_ALL)
+				error_found = 1
+			if (error_found <= num_allowed_errors_disp):
+				print(Back.RED,Fore.YELLOW,'         Value Error!        ',Style.RESET_ALL)
+				error_padding = 10
+				print(Back.BLUE,Fore.WHITE,'      index:   ',Back.YELLOW,Fore.BLACK,index,' '*(error_padding-len(str(index))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE,'   With value: ',Back.YELLOW,Fore.BLACK, element,' '*(error_padding-len(str(element))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE,'Expected value:',Back.YELLOW,Fore.BLACK,Debug_output_3[index],' '*(error_padding-len(str(Debug_output_3[index]))),Style.RESET_ALL)
+			error_found = error_found + 1
+		index = index + 1
+	if (error_found > num_allowed_errors_disp):
+		print(Back.RED,Fore.YELLOW, 'Error!',Back.YELLOW,Fore.BLACK, 'Number of Value Errors exceded the display limit!',Style.RESET_ALL)
+		
+
+	sum_current = sum(Debug_output_3)
+	sum_output = sum(Output)
 	
-	if (sum(Output) - sum_current == 0):
+	if (sum_output - sum_current == 0):
 		print(Back.GREEN+' Verification Sucessfull! ' + Style.RESET_ALL)
 	else:
-		print(Back.RED+Fore.YELLOW+' ERROR! '+Back.YELLOW + Fore.BLACK+' Computation unsucessfull! ' + Style.RESET_ALL +  '\n' + Back.BLUE + 'Difference: ' +Back.YELLOW +Fore.BLACK+ str(sum(Output)-sum_current) + ' ' + Style.RESET_ALL)
+		print(Back.RED,Fore.YELLOW,'           Error Impact                     ',Style.RESET_ALL)
+		error_padding = 15
+		print(Back.BLUE,Fore.WHITE, '     Number of errors:   ', Back.YELLOW,Fore.BLACK,format(error_found,',d'),' '*(error_padding-len(str(format(error_found,',d')))),Style.RESET_ALL)
+		print(Back.BLUE,Fore.WHITE, ' Sum of GPU Calculation: ' ,Back.YELLOW,Fore.BLACK,format(int(sum_output),',d'),' '*(error_padding-len(str(format(int(sum_output),',d')))),Style.RESET_ALL)
+		print(Back.BLUE,Fore.WHITE, 'Verifycation Calculation:' ,Back.YELLOW,Fore.BLACK,format(int(sum_current),',d'),' '*(error_padding-len(str(format(int(sum_current),',d')))),Style.RESET_ALL)
+		print(Back.BLUE,Fore.WHITE, '       Difference:       ' ,Back.YELLOW,Fore.BLACK,format(int(abs(sum_output-sum_current)),',d'),' '*(error_padding-len(str(format(int(abs(sum_output-sum_current)),',d')))),Style.RESET_ALL)
 
 # forward propigate the input data through the network
 def feed_forward(input_vec,input_matrix,time):
@@ -249,15 +281,26 @@ def feed_forward(input_vec,input_matrix,time):
 	# calculte the number of work groups per row
 	num_work_groups_per_row = int(input_matrix.shape[1]/max_work_group_size)+1
 
+	
+
 	if (int(input_matrix.shape[1]/max_work_group_size) == 0):
 		num_work_groups_per_row = 1
 	
+
+	if(float(input_matrix.shape[1])/(max_work_group_size)*1.0 == 1.0):
+		num_work_groups_per_row = 1
 
 	# Initalize a variable for padding
 	remainder_padding = 0
 
 	# Make a temp variable we can add the padding to and not affect the network variable
 	padded_matrix_tmp = input_matrix
+
+	#print('Number of work groups per row: '+str(num_work_groups_per_row))
+	#print('Input matrix num collums: ',input_matrix.shape[1])
+	#print('Max Work group size: ', max_work_group_size)
+
+
 
 	# If there was no padding added and there is only one work group per row
 	if (num_work_groups_per_row != 1):
@@ -320,13 +363,35 @@ def feed_forward(input_vec,input_matrix,time):
 								sum_local_to_device)
 
 
-	sum_bridge_get = sum_bridge_to_device.get()
-	#print('Sum Bridge results: with dims' + str(sum_bridge_get.shape) + '\n' + str(sum_bridge_get))
+	if DEBUG:
+		DEBUG_output_get = network_hidden_to_device.get()
+		DEBUG_output_get = np.resize(DEBUG_output_get,input_matrix.shape)
+		DEBUG_output_get = DEBUG_output_get[0,:]
+
+		#print('Multiplication results: with dims' + str(DEBUG_output_get.shape) + '\n' + str(DEBUG_output_get))
+		#print('Sum of collum: ',sum(DEBUG_output_get))
+
+		DEBUG_weights = network_hidden_to_device.get()
+		DEBUG_weights = np.reshape(DEBUG_weights,padded_matrix_tmp.shape)
+		#print('Weights matrix: with dim: ' ,input_matrix.shape,'\n',DEBUG_weights)
+
+		sum_bridge_get = sum_bridge_to_device.get()
+		sum_bridge_get = np.resize(sum_bridge_get,sum_bridge.shape)
+		#print('Sum Bridge results: with dims' + str(sum_bridge_get.shape) + '\n' + str(sum_bridge_get))
+
+		#print('Operation output: \n',opperation_output_to_device.get())
 	# Get the output from the device
 	if (time == 1):
 		return opperation_output_to_device.get()
 	else:
 		return feed_forward(opperation_output_to_device.get(),network_output_weights,1)
+
+
+
+
+
+
+
 
 
 # initalize a timer object to time the calculation
