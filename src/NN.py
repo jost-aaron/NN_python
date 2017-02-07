@@ -241,8 +241,8 @@ def verify_feed_forward():
 				print('==================================='+ Style.RESET_ALL)
 				error_found = 1
 			if (error_found <= num_allowed_errors_disp):
-				print(Back.RED,Fore.YELLOW,'         Value Error!        ',Style.RESET_ALL)
-				error_padding = 10
+				print(Back.RED,Fore.YELLOW,'          Value Error!         ',Style.RESET_ALL)
+				error_padding = 12
 				print(Back.BLUE,Fore.WHITE,'      index:   ',Back.YELLOW,Fore.BLACK,index,' '*(error_padding-len(str(index))),Style.RESET_ALL)
 				print(Back.BLUE,Fore.WHITE,'   With value: ',Back.YELLOW,Fore.BLACK, element,' '*(error_padding-len(str(element))),Style.RESET_ALL)
 				print(Back.BLUE,Fore.WHITE,'Expected value:',Back.YELLOW,Fore.BLACK,Debug_output_3[index],' '*(error_padding-len(str(Debug_output_3[index]))),Style.RESET_ALL)
@@ -385,12 +385,6 @@ def feed_forward(input_vec,input_matrix,time):
 		return opperation_output_to_device.get()
 	else:
 		return feed_forward(opperation_output_to_device.get(),network_output_weights,1)
-
-
-
-
-
-
 
 
 
