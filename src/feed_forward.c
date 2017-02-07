@@ -107,25 +107,25 @@ __kernel void feed_forward(
 
 
           // Wait for all workgroups to finish their local sums and put them into the sum bridge
-          //barrier(CLK_GLOBAL_MEM_FENCE);
+         // barrier(CLK_GLOBAL_MEM_FENCE);
 
           // If this instance is the leader of its row
-          if (global_x == 0) {
+          //if (global_x == 0) {
             // Move number of sums per collum into local memory
-            uint num_sums = *sums_per_collum;
+          //  uint num_sums = *sums_per_collum;
 
             // ititalize a value for total number of sums
-            float total_sum = 0;
+          //  float total_sum = 0;
 
             // Sum the sum bridge row
-            for (uint i = 0; i < num_sums; i++) {
-                total_sum += sum_bridge(global_y,i);
-              }
+         //   for (uint i = 0; i < num_sums; i++) {
+         //       total_sum += sum_bridge(global_y,i);
+          //    }
 
             // Move the result into the output vector
-            output_vector[global_y] = total_sum;
+         //   output_vector[global_y] = total_sum;
 
-          }
+         // }
     
 
         }
