@@ -8,6 +8,7 @@ import sys
 import colorama
 from colorama import Fore, Back, Style
 import platform
+from psutil import virtual_memory
 
 # Clear the screen
 if (platform.system() == 'Windows'):
@@ -27,9 +28,9 @@ cl_device_list = []
 cl_device_work_group_max_size = []
 
 # Network size properties
-input_size = 1000000
+input_size = 1000
 hidden_size = 500
-output_size = 3000
+output_size = 300
 
 # Neuron Properties
 neuron_fire_thresh = 0.5

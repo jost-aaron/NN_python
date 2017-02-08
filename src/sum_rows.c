@@ -13,7 +13,7 @@ __kernel void sum_rows(
 
     uint local_id = get_local_id(0);
     
-    uint width = *matrix_width;
+    int width = *matrix_width;
 
     float local_sum = 0;
 
