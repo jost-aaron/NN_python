@@ -102,15 +102,18 @@ class Neural_Net(object):
 	# Create the hidden and output data structure with numpy arrays
 	def init_data_structure(self):
 		print(Back.BLUE+'Creating the data structure...'+ Style.RESET_ALL)
-		self.network_hidden = np.ones((self.hidden_size,self.input_size)).astype(np.float32)
+		#self.network_hidden = np.ones((self.hidden_size,self.input_size)).astype(np.float32)
+		self.network_hidden = np.random.rand(self.hidden_size,self.input_size).astype(np.float32)
 		self.network_output = (np.zeros(self.output_size)).astype(np.float32)
-		self.network_output_weights = np.ones((self.output_size,self.hidden_size)).astype(np.float32)
+		#self.network_output_weights = np.ones((self.output_size,self.hidden_size)).astype(np.float32)
+		self.network_output_weights = np.random.rand(self.output_size,self.hidden_size).astype(np.float32)
 
 	# Load some input data to feed to the network
 	def load_input_data(self,data_type):
 		print(Back.BLUE+'Generating input data...'+ Style.RESET_ALL)
 		if data_type == 'random':
-			self.network_input = 1*np.ones(self.input_size).astype(np.float32)
+			#self.network_input = 1*np.ones(self.input_size).astype(np.float32)
+			self.network_input = 1*np.random.rand(self.input_size).astype(np.float32)
 		elif data_type == 'from':
 			return 0
 
@@ -276,15 +279,13 @@ class Neural_Net(object):
 					# If the number of errors thats been displayed is below the max allowed
 					if (error_found <= num_allowed_errors_disp):
 
+						error_padding = 16
 						# Give info on error
-						print(Back.RED,Fore.YELLOW,'          Value Error!         ',Style.RESET_ALL)
-						error_padding = 12
+						print(Back.RED,Fore.YELLOW,'          Value Error!',' '*(error_padding-4),Style.RESET_ALL)
 						print(Back.BLUE,Fore.WHITE,'      index:   ',Back.YELLOW,Fore.BLACK,format(int(index),',d'),' '*(error_padding-len(str(format(int(index),',d')))),Style.RESET_ALL)
-						print(Back.BLUE,Fore.WHITE,'   With value: ',Back.YELLOW,Fore.BLACK, format(int(element),',d'),' '*(error_padding-len(str(format(int(element),',d')))),Style.RESET_ALL)
-						print(Back.BLUE,Fore.WHITE,'Expected value:',Back.YELLOW,Fore.BLACK,format(int(Debug_output_3[index]),',d'),' '*(error_padding-len(str(format(int(Debug_output_3[index]),',d')))),Style.RESET_ALL)
-						print(Back.BLUE,Fore.WHITE,'   Difference: ',Back.YELLOW,Fore.BLACK,format(int(abs(Debug_output_3[index]-element)),',d'),' '*(error_padding-len(str(format(int(abs(Debug_output_3[index]-element)),',d')))),Style.RESET_ALL)
-						if (DEBUG_feed_forward_verification):
-							t_verify.print_elapsed_time_msg('Verification Time:')
+						print(Back.BLUE,Fore.WHITE,'   With value: ',Back.YELLOW,Fore.BLACK, format(element,',f'),' '*(error_padding-len(str(format(element,',f')))),Style.RESET_ALL)
+						print(Back.BLUE,Fore.WHITE,'Expected value:',Back.YELLOW,Fore.BLACK,format(Debug_output_3[index],',f'),' '*(error_padding-len(str(format(Debug_output_3[index],',f')))),Style.RESET_ALL)
+						print(Back.BLUE,Fore.WHITE,'   Difference: ',Back.YELLOW,Fore.BLACK,format(abs(Debug_output_3[index]-element),',f'),' '*(error_padding-len(str(format(abs(Debug_output_3[index]-element),',f')))),Style.RESET_ALL)
 					# increment the number of errors found
 					error_found = error_found + 1
 				# Move to the next data index
@@ -304,13 +305,14 @@ class Neural_Net(object):
 				t_verify.print_elapsed_time_msg('Verification Time:')
 			else:
 				# Give other information about the errors
-				print(Back.RED,Fore.YELLOW,'           Error Impact                     ',Style.RESET_ALL)
-				error_padding = 15
+				error_padding = 20
+				print(Back.RED,Fore.YELLOW,'           Error Impact',' '*(error_padding+5),Style.RESET_ALL)
 				error_found = error_found-1
-				print(Back.BLUE,Fore.WHITE, '     Number of errors:   ', Back.YELLOW,Fore.BLACK,format(error_found,',d'),' '*(error_padding-len(str(format(error_found,',d')))),Style.RESET_ALL)
-				print(Back.BLUE,Fore.WHITE, ' Sum of GPU Calculation: ' ,Back.YELLOW,Fore.BLACK,format(int(sum_output),',d'),' '*(error_padding-len(str(format(int(sum_output),',d')))),Style.RESET_ALL)
-				print(Back.BLUE,Fore.WHITE, 'Verifycation Calculation:' ,Back.YELLOW,Fore.BLACK,format(int(sum_current),',d'),' '*(error_padding-len(str(format(int(sum_current),',d')))),Style.RESET_ALL)
-				print(Back.BLUE,Fore.WHITE, '       Difference:       ' ,Back.YELLOW,Fore.BLACK,format(int(abs(sum_output-sum_current)),',d'),' '*(error_padding-len(str(format(int(abs(sum_output-sum_current)),',d')))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE, '     Number of errors:   ', Back.YELLOW,Fore.BLACK,format(int(error_found),',d'),' '*(error_padding-len(str(format(int(error_found),',d')))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE, ' Sum of GPU Calculation: ' ,Back.YELLOW,Fore.BLACK,format(sum_output,',f'),' '*(error_padding-len(str(format(sum_output,',f')))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE, 'Verifycation Calculation:' ,Back.YELLOW,Fore.BLACK,format(sum_current,',f'),' '*(error_padding-len(str(format(sum_current,',f')))),Style.RESET_ALL)
+				print(Back.BLUE,Fore.WHITE, '       Difference:       ' ,Back.YELLOW,Fore.BLACK,format(abs(sum_output-sum_current),',f'),' '*(error_padding-len(str(format(abs(sum_output-sum_current),',f')))),Style.RESET_ALL)
+			if (self.DEBUG_feed_forward_verification):
 				t_verify.print_elapsed_time_msg('Verification Time:')
 
 	# forward propigate the input data through the network
