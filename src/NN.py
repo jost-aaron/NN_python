@@ -118,15 +118,28 @@ class Neural_Net(object):
 			return 0
 
 	def print_network_information(self):
+		vram_estimate = self.estimate_vram_usage()
 		if (self.DEBUG_network_info):
 			print(Fore.BLACK + Back.WHITE+'==========================================================')
-			print('=======' + Back.GREEN + Fore.BLACK+'            Network Information            '+Back.WHITE+Fore.BLACK+'========')
+			print(Fore.BLACK + Back.WHITE+'=======' + Back.GREEN + Fore.BLACK+'            Network Information            '+Back.WHITE+Fore.BLACK+'========')
 			print('==========================================================' + Style.RESET_ALL)
 			print(Fore.WHITE+Back.BLUE+'Input size: ' + Fore.BLACK+Back.YELLOW+ ' '+ str(format(self.input_size,',d'))+ ' ' +Style.RESET_ALL)
 			print(Fore.WHITE+Back.BLUE+'Hidden size: ' + Fore.BLACK+Back.YELLOW+' '+str(format(self.hidden_size,',d'))+ ' '+ Fore.BLACK+Back.YELLOW+Style.RESET_ALL)
 			print(Fore.WHITE+Back.BLUE+'Output size: ' + Fore.BLACK+Back.YELLOW+' '+str(format(self.output_size,',d'))+  ' ' +Style.RESET_ALL)
 			print(Fore.WHITE+Back.BLUE+'Number of data points: '  +Fore.BLACK+Back.YELLOW+ ' '+str(format(self.input_size + self.input_size*self.hidden_size + self.output_size,',d'))+ ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
-			print(Fore.WHITE+Back.BLUE+'Estimated on device data size: ' +Fore.BLACK+Back.YELLOW+ ' '+self.estimate_vram_usage() + ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
+			print(Fore.WHITE+Back.BLUE+'Estimated on device data size: ' +Fore.BLACK+Back.YELLOW+ ' '+vram_estimate[0] + ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
+		try:
+			if (vram_estimate[1][0] == 1):
+				errors = vram_estimate[1][1:]
+				for error in errors:
+					padding = 32
+					print(Fore.YELLOW+Back.RED,'Warning!',Fore.BLACK+Back.YELLOW,'The following devices have insuficent VRAM for the current computation:',Style.RESET_ALL)
+					print(Fore.YELLOW+Back.RED,errors.index(error)+1,Fore.WHITE,Back.BLUE,'   Device:',Fore.BLACK+Back.YELLOW,error[0],' '*(padding-len(str(error[0]))),Style.RESET_ALL)
+					print(Fore.YELLOW+Back.RED,' ',Fore.WHITE,Back.BLUE,'Avaliable:',Fore.BLACK+Back.YELLOW,str(error[1])+' MB',' '*(padding-len(str(error[1])+' MB')),Style.RESET_ALL)
+					print(Fore.YELLOW+Back.RED,' ',Fore.WHITE,Back.BLUE,' Required:',Fore.BLACK+Back.YELLOW,str(error[2])+' MB',' '*(padding-len(str(error[2])+' MB')),Style.RESET_ALL)
+		except:
+			pass
+		if (self.DEBUG_network_info):
 			print(Fore.BLACK + Back.WHITE+'==========================================================')
 			print('======='+ Back.GREEN + Fore.BLACK+'            Current Computation            '+Back.WHITE+Fore.BLACK+'========')
 			print('=========================================================='+ Style.RESET_ALL)
@@ -210,15 +223,26 @@ class Neural_Net(object):
 
 		in_Gbytes = in_Mbytes/1000
 
+		flag = 0
+
+		for device in self.cl_device_list:
+			device_global_mem = device.global_mem_size//1024//1024
+			if (in_Mbytes > device_global_mem):
+			#if (1600 > device_global_mem):
+				if (flag == 0):
+					flag = list((1,list((device.name,int(device_global_mem),round(in_Mbytes,4)))))
+				else:
+					flag.append(list((device.name,int(device_global_mem),round(in_Mbytes,4))))
+
 		# Check to see what the most relivent size is
 		if (in_bytes < 1000):
-			return str(round(in_bytes,4)) + ' B'
+			return list((str(round(in_bytes,4)) + ' B',flag))
 		elif(in_Kbytes < 1000):
-			return str(round(in_Kbytes,4)) + ' kB'
+			return list((str(round(in_Kbytes,4)) + ' kB',flag))
 		elif(in_Mbytes < 1000):
-			return str(round(in_Mbytes,4)) + ' MB'
+			return list((str(round(in_Mbytes,4)) + ' MB',flag))
 		else:
-			return str(round(in_Gbytes,4)) + ' GB'
+			return list((str(round(in_Gbytes,4)) + ' GB',flag))
 
 	# Verify the calculated data Very slow for large data sets
 	def verify_feed_forward(self):
@@ -470,10 +494,10 @@ n.cl_get_context()
 n.print_network_information()
 
 
-n.feed_forward(n.network_input,n.network_hidden,0)
+#n.feed_forward(n.network_input,n.network_hidden,0)
 
 
-n.verify_feed_forward()
+#n.verify_feed_forward()
 
 
 
