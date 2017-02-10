@@ -9,7 +9,10 @@ from colorama import Fore, Back, Style
 import platform
 from psutil import virtual_memory
 import time
+import math
 
+
+os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
 
 # Clear the screen
 if (platform.system() == 'Windows'):
@@ -81,6 +84,7 @@ class Neural_Net(object):
 		self.cl_device_list = []
 		self.cl_device_work_group_max_size = []
 		self.context = 0
+		self.cl_num_opps = 0
 
 		# Network size properties
 		self.input_size = net_input_size
@@ -93,6 +97,10 @@ class Neural_Net(object):
 		self.network_output = []
 		self.network_output_weights = []
 
+		# Network activation function
+		self.network_activation_function = 0
+		self.network_activation_function_num = 0
+
 	def net_full_debug(self):
 		self.DEBUG_feed_forward = True
 		self.DEBUG_feed_forward_verification = True
@@ -102,21 +110,19 @@ class Neural_Net(object):
 	# Create the hidden and output data structure with numpy arrays
 	def init_data_structure(self):
 		print(Back.BLUE+'Creating the data structure...'+ Style.RESET_ALL)
-		#self.network_hidden = np.ones((self.hidden_size,self.input_size)).astype(np.float32)
 		self.network_hidden = np.random.rand(self.hidden_size,self.input_size).astype(np.float32)
 		self.network_output = (np.zeros(self.output_size)).astype(np.float32)
-		#self.network_output_weights = np.ones((self.output_size,self.hidden_size)).astype(np.float32)
 		self.network_output_weights = np.random.rand(self.output_size,self.hidden_size).astype(np.float32)
 
 	# Load some input data to feed to the network
 	def load_input_data(self,data_type):
 		print(Back.BLUE+'Generating input data...'+ Style.RESET_ALL)
 		if data_type == 'random':
-			#self.network_input = 1*np.ones(self.input_size).astype(np.float32)
 			self.network_input = 1*np.random.rand(self.input_size).astype(np.float32)
 		elif data_type == 'from':
 			return 0
 
+	# Print out information about the networks size
 	def print_network_information(self):
 		vram_estimate = self.estimate_vram_usage()
 		if (self.DEBUG_network_info):
@@ -126,7 +132,7 @@ class Neural_Net(object):
 			print(Fore.WHITE+Back.BLUE+'Input size: ' + Fore.BLACK+Back.YELLOW+ ' '+ str(format(self.input_size,',d'))+ ' ' +Style.RESET_ALL)
 			print(Fore.WHITE+Back.BLUE+'Hidden size: ' + Fore.BLACK+Back.YELLOW+' '+str(format(self.hidden_size,',d'))+ ' '+ Fore.BLACK+Back.YELLOW+Style.RESET_ALL)
 			print(Fore.WHITE+Back.BLUE+'Output size: ' + Fore.BLACK+Back.YELLOW+' '+str(format(self.output_size,',d'))+  ' ' +Style.RESET_ALL)
-			print(Fore.WHITE+Back.BLUE+'Number of data points: '  +Fore.BLACK+Back.YELLOW+ ' '+str(format(self.input_size + self.input_size*self.hidden_size + self.output_size,',d'))+ ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
+			print(Fore.WHITE+Back.BLUE+'Number of data points: '  +Fore.BLACK+Back.YELLOW+ ' '+str(format(self.input_size + self.input_size*self.hidden_size + self.output_size + self.output_size*self.hidden_size,',d'))+ ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
 			print(Fore.WHITE+Back.BLUE+'Estimated on device data size: ' +Fore.BLACK+Back.YELLOW+ ' '+vram_estimate[0] + ' '+Fore.BLACK+Back.YELLOW+ Style.RESET_ALL)
 		try:
 			if (vram_estimate[1][0] == 1):
@@ -260,26 +266,43 @@ class Neural_Net(object):
 			Debug_output_3 = np.zeros(self.network_output_weights.shape[0]).astype(np.float32)
 
 			# Multiply the input vector by the collums of the weight matrix
-			print(Back.BLUE+'Verification: ' + Back.YELLOW + Fore.BLACK +' (1/4) ' + Style.RESET_ALL)
+			print(Back.BLUE+'Verification: ' + Back.YELLOW + Fore.BLACK +' (1/6) ' + Style.RESET_ALL)
 			for i in range(0,len(self.network_input)):
 				Debug_output[:,i] = Debug_output[:,i] * self.network_input[i]
 
 			# Sum each row of the result of the previous computation to get the hidden results
-			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (2/4) '+ Style.RESET_ALL)	
+			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (2/6) '+ Style.RESET_ALL)	
 			for i in range(0,self.network_hidden.shape[0]):
 				Debug_output_1[i] = sum(Debug_output[i,:])
 
 			# Apply the activation function to the results
+			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (3/6) '+ Style.RESET_ALL)	
+			# Activation function HTan
+			if (self.network_activation_function_num == 0):
+				Debug_output_1[:] = (2/(1+np.exp(-2*Debug_output_1[:]))) - 1
+			# Activation function logistic equation
+			elif (self.network_activation_function_num == 1):
+				Debug_output_1[:] = (1/(1+np.exp(-1*Debug_output_1[:])))
+			
 
 			# Take the outputs of the hidden neurons and multiply the weights by thoes results
-			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (3/4) '+ Style.RESET_ALL)
+			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (4/6) '+ Style.RESET_ALL)
 			for i in range(0,len(Debug_output_1)):
 				Debug_output_2[:,i] = Debug_output_2[:,i] * Debug_output_1[i]
 
 			# Sum each row of the result of the previous computation to get the output results
-			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (4/4) '+ Style.RESET_ALL)
+			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (5/6) '+ Style.RESET_ALL)
 			for i in range(0,self.network_output_weights.shape[0]):
 				Debug_output_3[i] = sum(Debug_output_2[i,:])
+
+			# Apply the activation function to the results
+			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (6/6) '+ Style.RESET_ALL)	
+			# Activation function HTan
+			if (self.network_activation_function_num == 0):
+				Debug_output_3[:] = (2/(1+np.exp(-2*Debug_output_3[:]))) - 1
+			# Activation function logistic equation
+			elif (self.network_activation_function_num == 1):
+				Debug_output_3[:] = (1/(1+np.exp(-1*Debug_output_3[:])))
 
 			# Define variables for use in error display
 			index = 0
@@ -326,7 +349,6 @@ class Neural_Net(object):
 			# If the sums are the same notify that the calculation was sucessful
 			if (sum_output - sum_current == 0):
 				print(Back.GREEN+' Verification Sucessfull! ' + Style.RESET_ALL)
-				t_verify.print_elapsed_time_msg('Verification Time:')
 			else:
 				# Give other information about the errors
 				error_padding = 20
@@ -341,12 +363,23 @@ class Neural_Net(object):
 
 	# forward propigate the input data through the network
 	def feed_forward(self,input_vec,input_matrix,time):
+		t_feed = Timer()
+		t_feed.start()
 
 		if (self.DEBUG_feed_forward):
-			t_feed = Timer()
-			t_feed.start()
+			self.cl_num_opps = self.cl_num_opps+1
 
 		if(time == 0):
+			# Check if the activation function has been specifyed
+			if (self.network_activation_function == 0):
+				print(Fore.YELLOW+Back.RED,'Warning!',Fore.BLACK+Back.YELLOW,'Activation function not specifyed! Using Default: HTan.'+Style.RESET_ALL)
+			# If it has been set change the number to the correct number
+			else:
+				if (self.network_activation_function == 'HTan'):
+					self.network_activation_function_num = 0
+				elif (self.network_activation_function == 'Logistic'):
+					self.network_activation_function_num = 1
+
 			print(Back.BLUE+'Feeding forward network...'+ Style.RESET_ALL)
 
 		# Create a command queue
@@ -435,7 +468,7 @@ class Neural_Net(object):
 		sum_bridge_get = np.resize(sum_bridge_get,sum_bridge.shape)
 
 		if (num_work_groups_per_row != 1):
-			output_sums = self.cl_sum_rows(sum_bridge_get)
+			output_sums = self.cl_sum_rows(sum_bridge_get,1)
 		else:
 			output_sums = opperation_output_to_device.get()
 
@@ -449,12 +482,11 @@ class Neural_Net(object):
 				t_feed.print_elapsed_time_msg('Feed forward time:')
 
 	# Calculate the sum of the workgroups for one collum
-	def cl_sum_rows(self,input_matrix):
+	def cl_sum_rows(self,input_matrix,eval_activation):
 		queue = cl.CommandQueue(self.context)
 
-		input_matrix_to_device = cl_array.to_device(queue,input_matrix.flatten())
-		input_matrix_width_to_device = cl_array.to_device(queue,input_matrix.shape[1]*np.ones(1).astype(np.uint))
-		output_vector_to_device = cl_array.empty(queue,input_matrix.shape[0],dtype=np.float32)
+		if (self.DEBUG_feed_forward):
+			self.cl_num_opps = self.cl_num_opps+1
 
 		global_work_size = (input_matrix.shape[1],input_matrix.shape[0])
 
@@ -462,8 +494,8 @@ class Neural_Net(object):
 			size_1 = int(input_matrix.shape[1]/2)
 			size_2 = input_matrix.shape[1]-size_1
 
-			part_1 = cl_sum_rows(input_matrix[:,0:size_1])
-			part_2 = cl_sum_rows(input_matrix[:,size_1:input_matrix.shape[1]])
+			part_1 = cl_sum_rows(input_matrix[:,0:size_1],0)
+			part_2 = cl_sum_rows(input_matrix[:,size_1:input_matrix.shape[1]],0)
 
 			togther=np.append(part_1[None].T,part_2[None].T,axis=1)
 
@@ -471,15 +503,24 @@ class Neural_Net(object):
 
 		local_work_size = (input_matrix.shape[1],1)
 
+		input_matrix_to_device = cl_array.to_device(queue,input_matrix.flatten())
+		input_matrix_width_to_device = cl_array.to_device(queue,input_matrix.shape[1]*np.ones(1).astype(np.uint))
+		output_vector_to_device = cl_array.empty(queue,input_matrix.shape[0],dtype=np.float32)
+		eval_activation_to_device = cl_array.to_device(queue,eval_activation*np.ones(1).astype(np.uint))
+		activation_function_to_device = cl_array.to_device(queue,self.network_activation_function_num*np.ones(1).astype(np.uint))
+
+
 		program = cl.Program(self.context,self.cl_load_kernel('sum_rows.c')).build()
 
-		program.sum_rows(queue,global_work_size,local_work_size,input_matrix_to_device.data,input_matrix_width_to_device.data,output_vector_to_device.data)
+		program.sum_rows(queue,global_work_size,local_work_size,input_matrix_to_device.data,input_matrix_width_to_device.data,output_vector_to_device.data,eval_activation_to_device.data,activation_function_to_device.data)
 
 		return output_vector_to_device.get()
 
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
 n = Neural_Net(1000,1000,300)
+
+n.network_activation_function = 'Logistic'
 
 n.net_full_debug()
 
@@ -494,10 +535,12 @@ n.cl_get_context()
 n.print_network_information()
 
 
-#n.feed_forward(n.network_input,n.network_hidden,0)
+n.feed_forward(n.network_input,n.network_hidden,0)
 
 
-#n.verify_feed_forward()
+n.verify_feed_forward()
+
+print('Number of opencl opperations: ',n.cl_num_opps)
 
 
 
