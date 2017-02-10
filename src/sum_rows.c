@@ -1,3 +1,8 @@
+// This file is used for the following things:
+//   - Summing the rest of the values which could not be globaly syncronized in feed_forward.c 
+//   - Applying the activation function to the output of the hidden and output neurons
+
+
 // Defined functions to access the flattened matricies as regular matricies
 #define input_matrix_access(r, c) (matrix_in[(r)*width + (c)])
 
@@ -21,8 +26,7 @@ __kernel void sum_rows(
     __global uint *matrix_width,
     __global float *vector_out,
     __global uint *calc_fire_in,
-    __global uint *activation_function_type_in
-    )
+    __global uint *activation_function_type_in)
 {
     // Get the global position of this instance
     uint global_x = get_global_id(0);
