@@ -26,7 +26,7 @@
 #define input_matrix_access(r, c) (input_matrix[(r)*width + (c)])
 #define sum_bridge(r,c) (sum_bridge[(r)*num_sums_per_collum + (c)])
 
-__kernel void feed_forward(
+__kernel void forward_prop(
     __global uint *network_width,
     __global uint *sums_per_collum,
     __global float *input_vector,

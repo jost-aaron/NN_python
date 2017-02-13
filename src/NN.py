@@ -74,8 +74,8 @@ class Neural_Net(object):
 		colorama.init()
 
 		# Debug settings
-		self.DEBUG_feed_forward = False
-		self.DEBUG_feed_forward_verification = False
+		self.DEBUG_forward_prop = False
+		self.DEBUG_forward_prop_verification = False
 		self.DEBUG_cl_devices = False
 		self.DEBUG_network_info = False
 
@@ -102,8 +102,8 @@ class Neural_Net(object):
 		self.network_activation_function_num = 0
 
 	def net_full_debug(self):
-		self.DEBUG_feed_forward = True
-		self.DEBUG_feed_forward_verification = True
+		self.DEBUG_forward_prop = True
+		self.DEBUG_forward_prop_verification = True
 		self.DEBUG_cl_devices = True
 		self.DEBUG_network_info = True
 
@@ -193,6 +193,46 @@ class Neural_Net(object):
 		print(Back.BLUE+"Device max work item sizes: ",Back.YELLOW,Fore.BLACK, device.max_work_item_sizes,Style.RESET_ALL)
 		print(Fore.BLACK+Back.WHITE+"----------------------------------------------------------"+Style.RESET_ALL)
 
+	# Calculate the sum of the workgroups for one collum
+	def cl_sum_rows(self,input_matrix,eval_activation):
+		queue = cl.CommandQueue(self.context)
+
+		if (self.DEBUG_forward_prop):
+			self.cl_num_opps = self.cl_num_opps+1
+
+		global_work_size = (input_matrix.shape[1],input_matrix.shape[0])
+
+		if (input_matrix.shape[1] > 256):
+			size_1 = int(input_matrix.shape[1]/2)
+			size_2 = input_matrix.shape[1]-size_1
+
+			part_1 = cl_sum_rows(input_matrix[:,0:size_1],0)
+			part_2 = cl_sum_rows(input_matrix[:,size_1:input_matrix.shape[1]],0)
+
+			togther=np.append(part_1[None].T,part_2[None].T,axis=1)
+
+			return cl_sum_rows(togther)
+
+		local_work_size = (input_matrix.shape[1],1)
+
+		input_matrix_to_device = cl_array.to_device(queue,input_matrix.flatten())
+		input_matrix_width_to_device = cl_array.to_device(queue,input_matrix.shape[1]*np.ones(1).astype(np.uint))
+		output_vector_to_device = cl_array.empty(queue,input_matrix.shape[0],dtype=np.float32)
+		eval_activation_to_device = cl_array.to_device(queue,eval_activation*np.ones(1).astype(np.uint))
+		activation_function_to_device = cl_array.to_device(queue,self.network_activation_function_num*np.ones(1).astype(np.uint))
+
+
+		program = cl.Program(self.context,self.cl_load_kernel('sum_rows.c')).build()
+
+		program.sum_rows(queue,global_work_size,local_work_size,input_matrix_to_device.data,input_matrix_width_to_device.data,output_vector_to_device.data,eval_activation_to_device.data,activation_function_to_device.data)
+
+		return output_vector_to_device.get()
+
+	# Initialize OpenCL stuff
+	def cl_init(self):
+		self.cl_find_devices()
+		self.cl_get_context()
+
 	# Propigate values through the network using a single kernel 
 	def estimate_vram_usage(self):
 
@@ -251,8 +291,8 @@ class Neural_Net(object):
 			return list((str(round(in_Gbytes,4)) + ' GB',flag))
 
 	# Verify the calculated data Very slow for large data sets
-	def verify_feed_forward(self):
-		if (self.DEBUG_feed_forward_verification):
+	def verify_forward_prop(self):
+		if (self.DEBUG_forward_prop_verification):
 			t_verify = Timer()
 			t_verify.start()
 
@@ -358,15 +398,15 @@ class Neural_Net(object):
 				print(Back.BLUE,Fore.WHITE, ' Sum of GPU Calculation: ' ,Back.YELLOW,Fore.BLACK,format(sum_output,',f'),' '*(error_padding-len(str(format(sum_output,',f')))),Style.RESET_ALL)
 				print(Back.BLUE,Fore.WHITE, 'Verifycation Calculation:' ,Back.YELLOW,Fore.BLACK,format(sum_current,',f'),' '*(error_padding-len(str(format(sum_current,',f')))),Style.RESET_ALL)
 				print(Back.BLUE,Fore.WHITE, '       Difference:       ' ,Back.YELLOW,Fore.BLACK,format(abs(sum_output-sum_current),',f'),' '*(error_padding-len(str(format(abs(sum_output-sum_current),',f')))),Style.RESET_ALL)
-			if (self.DEBUG_feed_forward_verification):
+			if (self.DEBUG_forward_prop_verification):
 				t_verify.print_elapsed_time_msg('Verification Time:')
 
-	# forward propigate the input data through the network
-	def feed_forward(self,input_vec,input_matrix,time):
+	# forward propigate the input data through the network. When calling use time=0
+	def forward_prop_cl(self,input_vec,input_matrix,time):
 		t_feed = Timer()
 		t_feed.start()
 
-		if (self.DEBUG_feed_forward):
+		if (self.DEBUG_forward_prop):
 			self.cl_num_opps = self.cl_num_opps+1
 
 		if(time == 0):
@@ -449,10 +489,10 @@ class Neural_Net(object):
 		global_work_size = (padded_matrix_tmp.shape[1],padded_matrix_tmp.shape[0])
 
 		# Build program
-		program = cl.Program(self.context,self.cl_load_kernel('feed_forward.c')).build()
+		program = cl.Program(self.context,self.cl_load_kernel('forward_prop.c')).build()
 
 		# Call the kernel and load arguments
-		program.feed_forward(queue,
+		program.forward_prop(queue,
 									global_work_size, 
 									local_work_size, 
 									hidden_width_to_device.data,
@@ -476,49 +516,58 @@ class Neural_Net(object):
 		if (time == 1):
 			return output_sums
 		else:
-			self.network_output = self.feed_forward(output_sums,self.network_output_weights,1)
+			self.network_output = self.forward_prop_cl(output_sums,self.network_output_weights,1)
 			print(Back.BLUE+Fore.WHITE+'Feed forward Complete!',Style.RESET_ALL)
-			if (self.DEBUG_feed_forward):
+			if (self.DEBUG_forward_prop):
 				t_feed.print_elapsed_time_msg('Feed forward time:')
 
-	# Calculate the sum of the workgroups for one collum
-	def cl_sum_rows(self,input_matrix,eval_activation):
-		queue = cl.CommandQueue(self.context)
+	def forward_prop_cpu(self):
+		# Define matricies to do the verification computations
+			Debug_output = self.network_hidden
+			Debug_output_1 = np.zeros(self.network_hidden.shape[0]).astype(np.float32)
+			Debug_output_2 = self.network_output_weights
+			Debug_output_3 = np.zeros(self.network_output_weights.shape[0]).astype(np.float32)
 
-		if (self.DEBUG_feed_forward):
-			self.cl_num_opps = self.cl_num_opps+1
+			# Multiply the input vector by the collums of the weight matrix
+			for i in range(0,len(self.network_input)):
+				Debug_output[:,i] = Debug_output[:,i] * self.network_input[i]
 
-		global_work_size = (input_matrix.shape[1],input_matrix.shape[0])
+			# Sum each row of the result of the previous computation to get the hidden results
+			for i in range(0,self.network_hidden.shape[0]):
+				Debug_output_1[i] = sum(Debug_output[i,:])
 
-		if (input_matrix.shape[1] > 256):
-			size_1 = int(input_matrix.shape[1]/2)
-			size_2 = input_matrix.shape[1]-size_1
+			# Apply the activation function to the results	
+			# Activation function HTan
+			if (self.network_activation_function_num == 0):
+				Debug_output_1[:] = (2/(1+np.exp(-2*Debug_output_1[:]))) - 1
+			# Activation function logistic equation
+			elif (self.network_activation_function_num == 1):
+				Debug_output_1[:] = (1/(1+np.exp(-1*Debug_output_1[:])))
+			
 
-			part_1 = cl_sum_rows(input_matrix[:,0:size_1],0)
-			part_2 = cl_sum_rows(input_matrix[:,size_1:input_matrix.shape[1]],0)
+			# Take the outputs of the hidden neurons and multiply the weights by thoes results
+			for i in range(0,len(Debug_output_1)):
+				Debug_output_2[:,i] = Debug_output_2[:,i] * Debug_output_1[i]
 
-			togther=np.append(part_1[None].T,part_2[None].T,axis=1)
+			# Sum each row of the result of the previous computation to get the output results
+			for i in range(0,self.network_output_weights.shape[0]):
+				Debug_output_3[i] = sum(Debug_output_2[i,:])
 
-			return cl_sum_rows(togther)
+			# Apply the activation function to the results	
+			# Activation function HTan
+			if (self.network_activation_function_num == 0):
+				Debug_output_3[:] = (2/(1+np.exp(-2*Debug_output_3[:]))) - 1
+			# Activation function logistic equation
+			elif (self.network_activation_function_num == 1):
+				Debug_output_3[:] = (1/(1+np.exp(-1*Debug_output_3[:])))
 
-		local_work_size = (input_matrix.shape[1],1)
+			self.network_output = Debug_output_3
 
-		input_matrix_to_device = cl_array.to_device(queue,input_matrix.flatten())
-		input_matrix_width_to_device = cl_array.to_device(queue,input_matrix.shape[1]*np.ones(1).astype(np.uint))
-		output_vector_to_device = cl_array.empty(queue,input_matrix.shape[0],dtype=np.float32)
-		eval_activation_to_device = cl_array.to_device(queue,eval_activation*np.ones(1).astype(np.uint))
-		activation_function_to_device = cl_array.to_device(queue,self.network_activation_function_num*np.ones(1).astype(np.uint))
-
-
-		program = cl.Program(self.context,self.cl_load_kernel('sum_rows.c')).build()
-
-		program.sum_rows(queue,global_work_size,local_work_size,input_matrix_to_device.data,input_matrix_width_to_device.data,output_vector_to_device.data,eval_activation_to_device.data,activation_function_to_device.data)
-
-		return output_vector_to_device.get()
+	
 
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(1000,1000,300)
+n = Neural_Net(30,30,30)
 
 n.network_activation_function = 'Logistic'
 
@@ -528,17 +577,17 @@ n.load_input_data('random')
 
 n.init_data_structure()
 
-n.cl_find_devices()
-
-n.cl_get_context()
+n.cl_init()
 
 n.print_network_information()
 
 
-n.feed_forward(n.network_input,n.network_hidden,0)
+#n.forward_prop_cl(n.network_input,n.network_hidden,0)
+
+n.forward_prop_cpu()
 
 
-n.verify_feed_forward()
+n.verify_forward_prop()
 
 print('Number of opencl opperations: ',n.cl_num_opps)
 
