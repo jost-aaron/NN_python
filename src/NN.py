@@ -77,6 +77,7 @@ class Neural_Net(object):
 		# Debug settings
 		self.DEBUG_forward_prop = False
 		self.DEBUG_forward_prop_verification = False
+		self.DEBUG_forward_prop_verification_in_progress = False
 		self.DEBUG_cl_devices = False
 		self.DEBUG_network_info = False
 
@@ -92,15 +93,26 @@ class Neural_Net(object):
 		self.hidden_size = net_hidden_size
 		self.output_size = net_output_size
 
+		# Network learning rate
+		self.learning_rate = 3
+
+		# Network Partial Derivatives
+		self.dJdW1 = 0
+		self.dJdW2 = 0
+
 		# Network storage variables
 		self.network_input = []
 		self.network_hidden = []
+		self.network_hidden_activation = []
+		self.network_hidden_activity = []
 		self.network_output = []
 		self.network_output_weights = []
+		self.network_output_activation = []
 
 		# Network activation function
 		self.network_activation_function = 0
 		self.network_activation_function_num = 0
+		
 
 	def net_full_debug(self):
 		self.DEBUG_forward_prop = True
@@ -297,53 +309,7 @@ class Neural_Net(object):
 			t_verify = Timer()
 			t_verify.start()
 
-			# Notify user Debug mode is enabled and that the verification is occuring.
-			print(Back.RED + Fore.YELLOW + ' Debug mode enabled! '+Back.BLUE+ Fore.WHITE + ' Verifying Feed Forward Calculation... \n' + Fore.YELLOW + Back.RED +' Warning! ' +Fore.BLACK +Back.YELLOW+' This is very slow for large datasets! ' + Style.RESET_ALL)
-			
-			# Define matricies to do the verification computations
-			Debug_output = self.network_hidden
-			Debug_output_1 = np.zeros(self.network_hidden.shape[0]).astype(np.float32)
-			Debug_output_2 = self.network_output_weights
-			Debug_output_3 = np.zeros(self.network_output_weights.shape[0]).astype(np.float32)
-
-			# Multiply the input vector by the collums of the weight matrix
-			print(Back.BLUE+'Verification: ' + Back.YELLOW + Fore.BLACK +' (1/6) ' + Style.RESET_ALL)
-			for i in range(0,len(self.network_input)):
-				Debug_output[:,i] = Debug_output[:,i] * self.network_input[i]
-
-			# Sum each row of the result of the previous computation to get the hidden results
-			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (2/6) '+ Style.RESET_ALL)	
-			for i in range(0,self.network_hidden.shape[0]):
-				Debug_output_1[i] = sum(Debug_output[i,:])
-
-			# Apply the activation function to the results
-			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (3/6) '+ Style.RESET_ALL)	
-			# Activation function HTan
-			if (self.network_activation_function_num == 0):
-				Debug_output_1[:] = (2/(1+np.exp(-2*Debug_output_1[:]))) - 1
-			# Activation function logistic equation
-			elif (self.network_activation_function_num == 1):
-				Debug_output_1[:] = (1/(1+np.exp(-1*Debug_output_1[:])))
-			
-
-			# Take the outputs of the hidden neurons and multiply the weights by thoes results
-			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (4/6) '+ Style.RESET_ALL)
-			for i in range(0,len(Debug_output_1)):
-				Debug_output_2[:,i] = Debug_output_2[:,i] * Debug_output_1[i]
-
-			# Sum each row of the result of the previous computation to get the output results
-			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (5/6) '+ Style.RESET_ALL)
-			for i in range(0,self.network_output_weights.shape[0]):
-				Debug_output_3[i] = sum(Debug_output_2[i,:])
-
-			# Apply the activation function to the results
-			print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (6/6) '+ Style.RESET_ALL)	
-			# Activation function HTan
-			if (self.network_activation_function_num == 0):
-				Debug_output_3[:] = (2/(1+np.exp(-2*Debug_output_3[:]))) - 1
-			# Activation function logistic equation
-			elif (self.network_activation_function_num == 1):
-				Debug_output_3[:] = (1/(1+np.exp(-1*Debug_output_3[:])))
+			Debug_output_3 = forward_prop_cpu();
 
 			# Define variables for use in error display
 			index = 0
@@ -402,7 +368,8 @@ class Neural_Net(object):
 			if (self.DEBUG_forward_prop_verification):
 				t_verify.print_elapsed_time_msg('Verification Time:')
 
-	# forward propigate the input data through the network. When calling use time=0
+	# forward propigate the input data through the network.
+	#n.forward_prop_cl(n.network_input,n.network_hidden,0)
 	def forward_prop_cl(self,input_vec,input_matrix,time):
 		t_feed = Timer()
 		t_feed.start()
@@ -529,14 +496,27 @@ class Neural_Net(object):
 			Debug_output_2 = self.network_output_weights
 			Debug_output_3 = np.zeros(self.network_output_weights.shape[0]).astype(np.float32)
 
+
+			if (self.DEBUG_forward_prop_verification_in_progress):
+				print(Back.BLUE+'Verification: ' + Back.YELLOW + Fore.BLACK +' (1/6) ' + Style.RESET_ALL)
+			
 			# Multiply the input vector by the collums of the weight matrix
 			for i in range(0,len(self.network_input)):
 				Debug_output[:,i] = Debug_output[:,i] * self.network_input[i]
 
+			if (self.DEBUG_forward_prop_verification_in_progress):
+				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (2/6) '+ Style.RESET_ALL)	
+			
 			# Sum each row of the result of the previous computation to get the hidden results
 			for i in range(0,self.network_hidden.shape[0]):
 				Debug_output_1[i] = sum(Debug_output[i,:])
 
+			# Save hidden layer activation
+			self.network_hidden_activation = Debug_output_1
+
+			if (self.DEBUG_forward_prop_verification_in_progress):
+				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (3/6) '+ Style.RESET_ALL)
+			
 			# Apply the activation function to the results	
 			# Activation function HTan
 			if (self.network_activation_function_num == 0):
@@ -545,15 +525,29 @@ class Neural_Net(object):
 			elif (self.network_activation_function_num == 1):
 				Debug_output_1[:] = (1/(1+np.exp(-1*Debug_output_1[:])))
 			
+			# Save hidden layer activity
+			self.network_hidden_activity = Debug_output_1 
 
+			if (self.DEBUG_forward_prop_verification_in_progress):
+				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (4/6) '+ Style.RESET_ALL)
+			
 			# Take the outputs of the hidden neurons and multiply the weights by thoes results
 			for i in range(0,len(Debug_output_1)):
 				Debug_output_2[:,i] = Debug_output_2[:,i] * Debug_output_1[i]
 
+			if (self.DEBUG_forward_prop_verification_in_progress):
+				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (5/6) '+ Style.RESET_ALL)
+			
 			# Sum each row of the result of the previous computation to get the output results
 			for i in range(0,self.network_output_weights.shape[0]):
 				Debug_output_3[i] = sum(Debug_output_2[i,:])
 
+			# Save output layer activation
+			self.network_output_activation = Debug_output_3
+
+			if (self.DEBUG_forward_prop_verification_in_progress):
+				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (6/6) '+ Style.RESET_ALL)
+			
 			# Apply the activation function to the results	
 			# Activation function HTan
 			if (self.network_activation_function_num == 0):
@@ -564,20 +558,21 @@ class Neural_Net(object):
 
 			self.network_output = Debug_output_3
 
-	def back_prop_cpu(self,known_result):
+			if(self.DEBUG_forward_prop_verification_in_progress):
+				return Debug_output_3
 
-		# implement cost function
-		cost = sum((1/2)*( known_result - self.network_output)**2)
+	# Functions for training
+	#----------------------------------------------------
+	def sigmoide(self,v_in):
+		return 1/(1+np.exp(-v_in))
 
-		def sigmoide_activation(v_in):
-			return 1/(1+np.exp(-v_in))
-		def sigmoide_activation_prime():
-			return np.exp(-v_in)/((1 + np.exp(-v_in))**2)
+	def sigmoid_prime(self,v_in):
+		return np.exp(-v_in)/((1 + np.exp(-v_in))**2)
 
-		def cost_prime():
-			self.yHat = self.network_output
+	def cost_function(self,v_in):
+		return sum((1/2)*( known_result - self.v_in)**2)
+	#----------------------------------------------------
 
-			delta3 = np.multiply
 
 	def train_grad_decent_cpu(self):
 
@@ -590,23 +585,45 @@ class Neural_Net(object):
 		for i in range(0,len(known_result)):
 			num = randint(0,100)
 			if (num > 50):
-				known_result(i) = 1
+				known_result[i] = 1
 			else:
-				known_result(i) = 0
+				known_result[i] = 0
 		#---------------------------------------------------
 
 
 
 		# Training loop
-		for j in range(0,max_itter)
-			back_prop_cpu(known_result)
+		for j in range(0,max_itter):
+
+			self.forward_prop_cpu()
+
+			# calculate how we need to change the weights to minimise the error
+			#back_prop_cpu(known_result)
+
+			
+			
+			delta3 = np.multiply(-(known_result-self.network_output), self.sigmoid_prime(self.network_output_activation))
+			print('Delta 3 with shape: ', delta3.shape,'\n',delta3,'\nnetwork hidden activity with shape: ' ,(np.matrix(self.network_hidden_activity)).shape,'\n',self.network_hidden_activity)
+    		
+
+				# BUG IN SUBLIME WTF
+    			self.dJdW2 = np.dot((np.matrix(self.network_hidden_activity)), delta3)
+
+    			delta2 = np.dot(delta3, self.network_hidden.T)*self.sigmoid_prime(self.network_hidden_activation)
+        		self.dJdW1 = np.dot(self.network_input.T, delta2)
+			
+			# Change the weights
+			self.network_hidden = self.network_hidden + learning_rate*self.dJdW1
+			self.network_output_weights = self.network_output_weights + learning_rate*self.dJdW2
+
+			print('Current cost function value: ', cost_function(network_output))
 
 		
 	
 
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(3,3,1)
+n = Neural_Net(2,3,1)
 
 n.network_activation_function = 'Logistic'
 
@@ -620,15 +637,8 @@ n.cl_init()
 
 n.print_network_information()
 
+n.train_grad_decent_cpu()
 
-#n.forward_prop_cl(n.network_input,n.network_hidden,0)
-
-n.forward_prop_cpu()
-
-
-n.verify_forward_prop()
-
-print('Number of opencl opperations: ',n.cl_num_opps)
 
 
 
