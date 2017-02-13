@@ -10,6 +10,7 @@ import platform
 from psutil import virtual_memory
 import time
 import math
+from random import randint
 
 
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
@@ -563,11 +564,49 @@ class Neural_Net(object):
 
 			self.network_output = Debug_output_3
 
+	def back_prop_cpu(self,known_result):
+
+		# implement cost function
+		cost = sum((1/2)*( known_result - self.network_output)**2)
+
+		def sigmoide_activation(v_in):
+			return 1/(1+np.exp(-v_in))
+		def sigmoide_activation_prime():
+			return np.exp(-v_in)/((1 + np.exp(-v_in))**2)
+
+		def cost_prime():
+			self.yHat = self.network_output
+
+			delta3 = np.multiply
+
+	def train_grad_decent_cpu(self):
+
+		# Temportary until we have more training capabilities
+		#---------------------------------------------------
+		# Max number of training itterations.
+		max_itter = 10
+		# Known test data to use
+		known_result = np.ones(len(self.network_output))
+		for i in range(0,len(known_result)):
+			num = randint(0,100)
+			if (num > 50):
+				known_result(i) = 1
+			else:
+				known_result(i) = 0
+		#---------------------------------------------------
+
+
+
+		# Training loop
+		for j in range(0,max_itter)
+			back_prop_cpu(known_result)
+
+		
 	
 
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(30,30,30)
+n = Neural_Net(3,3,1)
 
 n.network_activation_function = 'Logistic'
 
