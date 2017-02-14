@@ -573,13 +573,18 @@ class Neural_Net(object):
 		return sum((1/2)*( known_result - self.v_in)**2)
 	#----------------------------------------------------
 
+	def back_prop_cpu(self,known_result):
+		output_weights_error = self.network_output * (1 - self.network_output) * (self.network_output - known_result)
+		hidden_wieghts_error = self.network_hidden_activity * (1 - self.network_hidden_activity) * sum(output_weights_error * self.network_output_weights)
+
+		return hidden_wieghts_error,output_weights_error
 
 	def train_grad_decent_cpu(self):
 
 		# Temportary until we have more training capabilities
 		#---------------------------------------------------
 		# Max number of training itterations.
-		max_itter = 10
+		max_itter = 1
 		# Known test data to use
 		known_result = np.ones(len(self.network_output))
 		for i in range(0,len(known_result)):
@@ -597,26 +602,21 @@ class Neural_Net(object):
 
 			self.forward_prop_cpu()
 
-			# calculate how we need to change the weights to minimise the error
-			#back_prop_cpu(known_result)
+			hidden_wieghts_error,output_weights_error = self.back_prop_cpu(known_result)
 
-			
-			
-			delta3 = np.multiply(-(known_result-self.network_output), self.sigmoid_prime(self.network_output_activation))
-			print('Delta 3 with shape: ', delta3.shape,'\n',delta3,'\nnetwork hidden activity with shape: ' ,(np.matrix(self.network_hidden_activity)).shape,'\n',self.network_hidden_activity)
+			print('Hidden weights: \n',self.network_hidden)
+			print('Hidden weights error: \n',hidden_wieghts_error)
+			print('Output weights: \n', self.network_output_weights)
+			print('output weights error: \n',output_weights_error)
+
+
     		
 
-				# BUG IN SUBLIME WTF
-    			self.dJdW2 = np.dot((np.matrix(self.network_hidden_activity)), delta3)
-
-    			delta2 = np.dot(delta3, self.network_hidden.T)*self.sigmoid_prime(self.network_hidden_activation)
-        		self.dJdW1 = np.dot(self.network_input.T, delta2)
-			
 			# Change the weights
-			self.network_hidden = self.network_hidden + learning_rate*self.dJdW1
-			self.network_output_weights = self.network_output_weights + learning_rate*self.dJdW2
+			#self.network_hidden = self.network_hidden + learning_rate*self.dJdW1
+			#self.network_output_weights = self.network_output_weights + learning_rate*self.dJdW2
 
-			print('Current cost function value: ', cost_function(network_output))
+			#print('Current cost function value: ', cost_function(network_output))
 
 		
 	

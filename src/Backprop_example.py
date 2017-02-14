@@ -17,8 +17,8 @@ class Neural_Network(object):
         self.z2 = np.dot(X, self.W1)
         self.a2 = self.sigmoid(self.z2)
         self.z3 = np.dot(self.a2, self.W2)
-        yHat = self.sigmoid(self.z3) 
-        print yHat , '\n', '\n', '\n'
+        yHat = self.sigmoid(self.z3)
+        print 'Yhat \n',yHat
         return yHat
         
     def sigmoid(self, z):
@@ -38,16 +38,12 @@ class Neural_Network(object):
     def costFunctionPrime(self, X, y):
         #Compute derivative with respect to W and W2 for a given X and y:
         self.yHat = self.forward(X)
-        
-        print self.yHat
 
         delta3 = np.multiply(-(y-self.yHat), self.sigmoidPrime(self.z3))
         dJdW2 = np.dot(self.a2.T, delta3)
         
         delta2 = np.dot(delta3, self.W2.T)*self.sigmoidPrime(self.z2)
         dJdW1 = np.dot(X.T, delta2)  
-
-        print 'Opp 1: \n',-(y-self.yHat),'\n', self.sigmoidPrime(self.z3)
         
         return dJdW1, dJdW2
 
@@ -59,6 +55,10 @@ y = np.array(([75], [82], [93]), dtype=float)
 cost1 = NN.costFunction(X,y)
 dJdW1, dJdW2 = NN.costFunctionPrime(X,y)
 
-print('dJdW1:\n',dJdW1)
+print 'input\n',X
+print 'W1 \n',NN.W1
+print 'W2 \n',NN.W2
 
-print('dJdW2: \n',dJdW2)
+print 'dJdW1:\n',dJdW1
+
+print 'dJdW2: \n',dJdW2 
