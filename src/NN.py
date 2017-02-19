@@ -94,7 +94,7 @@ class Neural_Net(object):
 		self.output_size = net_output_size
 
 		# Network learning rate
-		self.learning_rate = 2
+		self.learning_rate = 2000
 
 		# Network storage variables
 		self.network_input = []
@@ -551,12 +551,13 @@ class Neural_Net(object):
 		# Temportary until we have more training capabilities
 		#---------------------------------------------------
 		# Max number of training itterations.
-		max_itter = 1000
+		max_itter = 3000
 		# Known test data to use
-		known_result = np.ones(len(self.network_output))
-		for i in range(0,len(known_result)):
-			num = random.random()
-			known_result[i] = num
+		known_result = np.zeros(len(self.network_output))
+		#for i in range(0,len(known_result)):
+		#	num = random.random()
+		#	known_result[i] = num
+		known_result[0] = 1
 		#---------------------------------------------------
 
 		# Training loop
@@ -564,9 +565,9 @@ class Neural_Net(object):
 
 			self.forward_prop_cpu()
 
-			if (j % max_itter/25 == 0 or j == max_itter):
-				current_error = abs(np.sum(self.network_output - known_result))
-				print('Current error: ',current_error)
+			if (j % 500 == 0 or j == max_itter):
+				current_error = abs(np.sum(self.network_output - known_result))/max(self.network_output.shape)
+				print('Error at (',j,'/',max_itter,'): ',current_error)
 
 			# Back Propigate the error 
 			output_weights_error = self.network_output * (1 - self.network_output) * (self.network_output - known_result)
@@ -579,15 +580,18 @@ class Neural_Net(object):
 			# Need to pultiply the change of the weights by the output of the previous layer
 
 		print(max_itter,'training itterations complete!')
+		print('Final Error: ',abs(np.sum(self.network_output - known_result))/max(self.network_output.shape))
 		print('Training network to: \n', known_result)
 		print('Best output: \n',self.network_output)
+		difs = abs(known_result - self.network_output)
+		print('Differences: \n',difs)
 
 		
 	
 
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(10,10,10)
+n = Neural_Net(25,25,25)
 
 n.net_full_debug()
 
