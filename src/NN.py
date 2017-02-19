@@ -94,7 +94,7 @@ class Neural_Net(object):
 		self.output_size = net_output_size
 
 		# Network learning rate
-		self.learning_rate = 3
+		self.learning_rate = 0.5
 
 		# Network Partial Derivatives
 		self.dJdW1 = 0
@@ -557,34 +557,17 @@ class Neural_Net(object):
 				Debug_output_3[:] = (1/(1+np.exp(-1*Debug_output_3[:])))
 
 			self.network_output = Debug_output_3
+			#print('network output: \n',Debug_output_3)
 
 			if(self.DEBUG_forward_prop_verification_in_progress):
 				return Debug_output_3
-
-	# Functions for training
-	#----------------------------------------------------
-	def sigmoide(self,v_in):
-		return 1/(1+np.exp(-v_in))
-
-	def sigmoid_prime(self,v_in):
-		return np.exp(-v_in)/((1 + np.exp(-v_in))**2)
-
-	def cost_function(self,v_in):
-		return sum((1/2)*( known_result - self.v_in)**2)
-	#----------------------------------------------------
-
-	def back_prop_cpu(self,known_result):
-		output_weights_error = self.network_output * (1 - self.network_output) * (self.network_output - known_result)
-		hidden_wieghts_error = self.network_hidden_activity * (1 - self.network_hidden_activity) * sum(output_weights_error * self.network_output_weights)
-
-		return hidden_wieghts_error,output_weights_error
 
 	def train_grad_decent_cpu(self):
 
 		# Temportary until we have more training capabilities
 		#---------------------------------------------------
 		# Max number of training itterations.
-		max_itter = 1
+		max_itter = 4000
 		# Known test data to use
 		known_result = np.ones(len(self.network_output))
 		for i in range(0,len(known_result)):
@@ -601,29 +584,24 @@ class Neural_Net(object):
 		for j in range(0,max_itter):
 
 			self.forward_prop_cpu()
+			if (j % max_itter/50 == 0 or j == max_itter):
+				current_error = abs(sum(self.network_output - known_result))
+				print('Current error: ',current_error)
 
-			hidden_wieghts_error,output_weights_error = self.back_prop_cpu(known_result)
-
-			print('Hidden weights: \n',self.network_hidden)
-			print('Hidden weights error: \n',hidden_wieghts_error)
-			print('Output weights: \n', self.network_output_weights)
-			print('output weights error: \n',output_weights_error)
-
-
-    		
+			# Back Propigate the error 
+			output_weights_error = self.learning_rate * self.network_output * (1 - self.network_output) * (self.network_output - known_result)
+			hidden_wieghts_error = self.learning_rate * self.network_hidden_activity * (1 - self.network_hidden_activity) * sum(output_weights_error * self.network_output_weights)
 
 			# Change the weights
-			#self.network_hidden = self.network_hidden + learning_rate*self.dJdW1
-			#self.network_output_weights = self.network_output_weights + learning_rate*self.dJdW2
-
-			#print('Current cost function value: ', cost_function(network_output))
+			self.network_output_weights = self.network_output_weights - np.transpose(output_weights_error)
+			self.network_hidden = self.network_hidden - np.transpose(hidden_wieghts_error)
 
 		
 	
 
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(2,3,1)
+n = Neural_Net(20,20,20)
 
 n.network_activation_function = 'Logistic'
 
