@@ -10,7 +10,7 @@ import platform
 from psutil import virtual_memory
 import time
 import math
-from random import randint
+import random
 
 
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
@@ -94,24 +94,16 @@ class Neural_Net(object):
 		self.output_size = net_output_size
 
 		# Network learning rate
-		self.learning_rate = 0.5
-
-		# Network Partial Derivatives
-		self.dJdW1 = 0
-		self.dJdW2 = 0
+		self.learning_rate = 2
 
 		# Network storage variables
 		self.network_input = []
+		self.network_input_activation = []
 		self.network_hidden = []
 		self.network_hidden_activation = []
-		self.network_hidden_activity = []
 		self.network_output = []
 		self.network_output_weights = []
 		self.network_output_activation = []
-
-		# Network activation function
-		self.network_activation_function = 0
-		self.network_activation_function_num = 0
 		
 
 	def net_full_debug(self):
@@ -491,25 +483,27 @@ class Neural_Net(object):
 
 	def forward_prop_cpu(self):
 		# Define matricies to do the verification computations
+			self.network_input_activation = np.ones(max(self.network_input.shape))
 			Debug_output = self.network_hidden
 			Debug_output_1 = np.zeros(self.network_hidden.shape[0]).astype(np.float32)
 			Debug_output_2 = self.network_output_weights
 			Debug_output_3 = np.zeros(self.network_output_weights.shape[0]).astype(np.float32)
 
+			self.network_input_activation[:] = (1/(1+np.exp(-1*self.network_input_activation[:])))
 
 			if (self.DEBUG_forward_prop_verification_in_progress):
 				print(Back.BLUE+'Verification: ' + Back.YELLOW + Fore.BLACK +' (1/6) ' + Style.RESET_ALL)
 			
 			# Multiply the input vector by the collums of the weight matrix
-			for i in range(0,len(self.network_input)):
+			for i in range(0,len(self.network_input_activation)):
 				Debug_output[:,i] = Debug_output[:,i] * self.network_input[i]
 
 			if (self.DEBUG_forward_prop_verification_in_progress):
 				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (2/6) '+ Style.RESET_ALL)	
-			
+
 			# Sum each row of the result of the previous computation to get the hidden results
 			for i in range(0,self.network_hidden.shape[0]):
-				Debug_output_1[i] = sum(Debug_output[i,:])
+				Debug_output_1[i] = np.sum(Debug_output[i,:])
 
 			# Save hidden layer activation
 			self.network_hidden_activation = Debug_output_1
@@ -518,12 +512,7 @@ class Neural_Net(object):
 				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (3/6) '+ Style.RESET_ALL)
 			
 			# Apply the activation function to the results	
-			# Activation function HTan
-			if (self.network_activation_function_num == 0):
-				Debug_output_1[:] = (2/(1+np.exp(-2*Debug_output_1[:]))) - 1
-			# Activation function logistic equation
-			elif (self.network_activation_function_num == 1):
-				Debug_output_1[:] = (1/(1+np.exp(-1*Debug_output_1[:])))
+			Debug_output_1[:] = (1/(1+np.exp(-1*Debug_output_1[:])))
 			
 			# Save hidden layer activity
 			self.network_hidden_activity = Debug_output_1 
@@ -540,7 +529,7 @@ class Neural_Net(object):
 			
 			# Sum each row of the result of the previous computation to get the output results
 			for i in range(0,self.network_output_weights.shape[0]):
-				Debug_output_3[i] = sum(Debug_output_2[i,:])
+				Debug_output_3[i] = np.sum(Debug_output_2[i,:])
 
 			# Save output layer activation
 			self.network_output_activation = Debug_output_3
@@ -549,12 +538,7 @@ class Neural_Net(object):
 				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (6/6) '+ Style.RESET_ALL)
 			
 			# Apply the activation function to the results	
-			# Activation function HTan
-			if (self.network_activation_function_num == 0):
-				Debug_output_3[:] = (2/(1+np.exp(-2*Debug_output_3[:]))) - 1
-			# Activation function logistic equation
-			elif (self.network_activation_function_num == 1):
-				Debug_output_3[:] = (1/(1+np.exp(-1*Debug_output_3[:])))
+			Debug_output_3[:] = (1/(1+np.exp(-1*Debug_output_3[:])))
 
 			self.network_output = Debug_output_3
 			#print('network output: \n',Debug_output_3)
@@ -567,43 +551,43 @@ class Neural_Net(object):
 		# Temportary until we have more training capabilities
 		#---------------------------------------------------
 		# Max number of training itterations.
-		max_itter = 4000
+		max_itter = 1000
 		# Known test data to use
 		known_result = np.ones(len(self.network_output))
 		for i in range(0,len(known_result)):
-			num = randint(0,100)
-			if (num > 50):
-				known_result[i] = 1
-			else:
-				known_result[i] = 0
+			num = random.random()
+			known_result[i] = num
 		#---------------------------------------------------
-
-
 
 		# Training loop
 		for j in range(0,max_itter):
 
 			self.forward_prop_cpu()
-			if (j % max_itter/50 == 0 or j == max_itter):
-				current_error = abs(sum(self.network_output - known_result))
+
+			if (j % max_itter/25 == 0 or j == max_itter):
+				current_error = abs(np.sum(self.network_output - known_result))
 				print('Current error: ',current_error)
 
 			# Back Propigate the error 
-			output_weights_error = self.learning_rate * self.network_output * (1 - self.network_output) * (self.network_output - known_result)
-			hidden_wieghts_error = self.learning_rate * self.network_hidden_activity * (1 - self.network_hidden_activity) * sum(output_weights_error * self.network_output_weights)
+			output_weights_error = self.network_output * (1 - self.network_output) * (self.network_output - known_result)
+			hidden_wieghts_error = self.network_hidden_activity * (1 - self.network_hidden_activity) * np.sum(output_weights_error * self.network_output_weights)
 
 			# Change the weights
-			self.network_output_weights = self.network_output_weights - np.transpose(output_weights_error)
-			self.network_hidden = self.network_hidden - np.transpose(hidden_wieghts_error)
+			self.network_output_weights = self.network_output_weights - self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity
+			self.network_hidden = self.network_hidden - self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation
+
+			# Need to pultiply the change of the weights by the output of the previous layer
+
+		print(max_itter,'training itterations complete!')
+		print('Training network to: \n', known_result)
+		print('Best output: \n',self.network_output)
 
 		
 	
 
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(20,20,20)
-
-n.network_activation_function = 'Logistic'
+n = Neural_Net(10,10,10)
 
 n.net_full_debug()
 
