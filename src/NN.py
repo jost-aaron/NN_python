@@ -11,6 +11,7 @@ from psutil import virtual_memory
 import time
 import math
 import random
+import matplotlib.pyplot as plt
 
 
 os.environ['PYOPENCL_COMPILER_OUTPUT'] = '1'
@@ -80,6 +81,7 @@ class Neural_Net(object):
 		self.DEBUG_forward_prop_verification_in_progress = False
 		self.DEBUG_cl_devices = False
 		self.DEBUG_network_info = False
+		self.DEBUG_training_graph = False
 
 		# OpenCL properties
 		self.target_cl_device_type = cl.device_type.GPU
@@ -94,7 +96,7 @@ class Neural_Net(object):
 		self.output_size = net_output_size
 
 		# Network learning rate
-		self.learning_rate = 2000
+		self.learning_rate = 10
 
 		# Network storage variables
 		self.network_input = []
@@ -111,13 +113,21 @@ class Neural_Net(object):
 		self.DEBUG_forward_prop_verification = True
 		self.DEBUG_cl_devices = True
 		self.DEBUG_network_info = True
+		self.DEBUG_training_graph = True
 
 	# Create the hidden and output data structure with numpy arrays
-	def init_data_structure(self):
+	def init_data_structure_32(self):
 		print(Back.BLUE+'Creating the data structure...'+ Style.RESET_ALL)
 		self.network_hidden = np.random.rand(self.hidden_size,self.input_size).astype(np.float32)
 		self.network_output = (np.zeros(self.output_size)).astype(np.float32)
 		self.network_output_weights = np.random.rand(self.output_size,self.hidden_size).astype(np.float32)
+
+	# Create the hidden and output data structure with numpy arrays
+	def init_data_structure_64(self):
+		print(Back.BLUE+'Creating the data structure...'+ Style.RESET_ALL)
+		self.network_hidden = np.random.rand(self.hidden_size,self.input_size).astype(np.double)
+		self.network_output = (np.zeros(self.output_size)).astype(np.double)
+		self.network_output_weights = np.random.rand(self.output_size,self.hidden_size).astype(np.double)
 
 	# Load some input data to feed to the network
 	def load_input_data(self,data_type):
@@ -511,7 +521,7 @@ class Neural_Net(object):
 			if (self.DEBUG_forward_prop_verification_in_progress):
 				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (3/6) '+ Style.RESET_ALL)
 			
-			# Apply the activation function to the results	
+			# Apply the activation function to the results
 			Debug_output_1[:] = (1/(1+np.exp(-1*Debug_output_1[:])))
 			
 			# Save hidden layer activity
@@ -546,64 +556,95 @@ class Neural_Net(object):
 			if(self.DEBUG_forward_prop_verification_in_progress):
 				return Debug_output_3
 
+	def cpu_train_prog_graph(self):
+
+		return 1
+
+
 	def train_grad_decent_cpu(self):
 
 		# Temportary until we have more training capabilities
 		#---------------------------------------------------
 		# Max number of training itterations.
-		max_itter = 3000
+		max_itter = 200
 		# Known test data to use
-		known_result = np.zeros(len(self.network_output))
+		#known_result = np.zeros(len(self.network_output))
 		#for i in range(0,len(known_result)):
 		#	num = random.random()
 		#	known_result[i] = num
-		known_result[0] = 1
+		#known_result[0] = 1
+		known_result = np.linspace(0,1,self.output_size)
 		#---------------------------------------------------
+
+
+
+		# Training graphing init
+		if (self.DEBUG_training_graph):
+			output_stats = np.matrix([np.ones(self.output_size)]).T
+			print(output_stats.shape)
+			
 
 		# Training loop
 		for j in range(0,max_itter):
 
 			self.forward_prop_cpu()
 
-			if (j % 500 == 0 or j == max_itter):
-				current_error = abs(np.sum(self.network_output - known_result))/max(self.network_output.shape)
-				print('Error at (',j,'/',max_itter,'): ',current_error)
+			if (j % 1 == 0 or j == max_itter):
+				current_error = abs(np.sum(self.network_output - known_result))
+				print('Error at (',j+1,'/',max_itter,'): ',current_error)
+
+			# Append the current errors onto the list of error values
+			if (self.DEBUG_training_graph):
+				output_stats = np.c_[output_stats,abs( 0.5*(self.network_output - known_result)**2)]
 
 			# Back Propigate the error 
 			output_weights_error = self.network_output * (1 - self.network_output) * (self.network_output - known_result)
-			hidden_wieghts_error = self.network_hidden_activity * (1 - self.network_hidden_activity) * np.sum(output_weights_error * self.network_output_weights)
 
+			hidden_wieghts_error = self.network_hidden_activity * (np.ones(self.network_hidden_activity.shape) - self.network_hidden_activity) * np.sum(output_weights_error * np.matrix(self.network_output_weights))
+			
+
+			if (j % 10 == 0 or j == max_itter):
+				print('Output change: \n',(self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity)[0:3,0:3])
+				print('Hidden change:\n',(self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation)[0:3,0:3])
+				print(''*30,'\n')
 			# Change the weights
 			self.network_output_weights = self.network_output_weights - self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity
 			self.network_hidden = self.network_hidden - self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation
 
-			# Need to pultiply the change of the weights by the output of the previous layer
+		# Plot the error for the first 30 outputs
+		if (self.DEBUG_training_graph):
+			x = np.array(np.linspace(0,output_stats.shape[1],output_stats.shape[1]))
 
-		print(max_itter,'training itterations complete!')
-		print('Final Error: ',abs(np.sum(self.network_output - known_result))/max(self.network_output.shape))
-		print('Training network to: \n', known_result)
-		print('Best output: \n',self.network_output)
-		difs = abs(known_result - self.network_output)
-		print('Differences: \n',difs)
+			max_output_show = 300
+			if (self.output_size > max_output_show):
+				num_lines = max_output_show
+			else:
+				num_lines = self.output_size
 
-		
-	
-
+			for i in range(0,num_lines):
+				plt.plot(x,np.array(output_stats[i,:]).squeeze())
+			plt.title('Error over itterations data')
+			plt.xlabel('Itteration number')
+			plt.ylabel('Absolute error for that output value')
+			plt.show()
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(25,25,25)
+n = Neural_Net(500,500,100)
 
 n.net_full_debug()
 
 n.load_input_data('random')
 
-n.init_data_structure()
+n.init_data_structure_32()
 
 n.cl_init()
 
 n.print_network_information()
 
 n.train_grad_decent_cpu()
+
+
+
 
 
 
