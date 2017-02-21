@@ -96,7 +96,7 @@ class Neural_Net(object):
 		self.output_size = net_output_size
 
 		# Network learning rate
-		self.learning_rate = 10
+		self.learning_rate = 0.001
 
 		# Network storage variables
 		self.network_input = []
@@ -118,9 +118,13 @@ class Neural_Net(object):
 	# Create the hidden and output data structure with numpy arrays
 	def init_data_structure_32(self):
 		print(Back.BLUE+'Creating the data structure...'+ Style.RESET_ALL)
-		self.network_hidden = np.random.rand(self.hidden_size,self.input_size).astype(np.float32)
+		#self.network_hidden = np.random.rand(self.hidden_size,self.input_size).astype(np.float32)
 		self.network_output = (np.zeros(self.output_size)).astype(np.float32)
-		self.network_output_weights = np.random.rand(self.output_size,self.hidden_size).astype(np.float32)
+		#self.network_output_weights = np.random.rand(self.output_size,self.hidden_size).astype(np.float32)
+
+		self.network_hidden = np.zeros((self.hidden_size,self.input_size)).astype(np.float32)
+		#self.network_output = (np.zeros(self.output_size)).astype(np.float32)
+		self.network_output_weights = np.zeros((self.output_size,self.hidden_size)).astype(np.float32)
 
 	# Create the hidden and output data structure with numpy arrays
 	def init_data_structure_64(self):
@@ -566,7 +570,7 @@ class Neural_Net(object):
 		# Temportary until we have more training capabilities
 		#---------------------------------------------------
 		# Max number of training itterations.
-		max_itter = 200
+		max_itter = 100
 		# Known test data to use
 		#known_result = np.zeros(len(self.network_output))
 		#for i in range(0,len(known_result)):
@@ -589,13 +593,14 @@ class Neural_Net(object):
 
 			self.forward_prop_cpu()
 
-			if (j % 1 == 0 or j == max_itter):
+			if (j % 10 == 0 or j == max_itter):
 				current_error = abs(np.sum(self.network_output - known_result))
 				print('Error at (',j+1,'/',max_itter,'): ',current_error)
 
 			# Append the current errors onto the list of error values
 			if (self.DEBUG_training_graph):
 				output_stats = np.c_[output_stats,abs( 0.5*(self.network_output - known_result)**2)]
+				#output_stats = np.c_[output_stats,abs(self.network_output - known_result)]
 
 			# Back Propigate the error 
 			output_weights_error = self.network_output * (1 - self.network_output) * (self.network_output - known_result)
@@ -603,10 +608,13 @@ class Neural_Net(object):
 			hidden_wieghts_error = self.network_hidden_activity * (np.ones(self.network_hidden_activity.shape) - self.network_hidden_activity) * np.sum(output_weights_error * np.matrix(self.network_output_weights))
 			
 
-			if (j % 10 == 0 or j == max_itter):
-				print('Output change: \n',(self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity)[0:3,0:3])
-				print('Hidden change:\n',(self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation)[0:3,0:3])
-				print(''*30,'\n')
+			#if (j % 1 == 0 or j == max_itter):
+			#	print('output change part 1',self.network_output[0:4])
+			#	print('output change part 2',(1-self.network_output)[0:4])
+			#	print('output change part 3',(self.network_output - known_result)[0:4])
+			#	print('Output change: \n',(self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity)[0:3,0:3])
+			#	print('Hidden change:\n',(self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation)[0:3,0:3])
+			#	print(''*30,'\n')
 			# Change the weights
 			self.network_output_weights = self.network_output_weights - self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity
 			self.network_hidden = self.network_hidden - self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation
@@ -629,7 +637,7 @@ class Neural_Net(object):
 			plt.show()
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(500,500,100)
+n = Neural_Net(50,50,100)
 
 n.net_full_debug()
 
