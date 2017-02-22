@@ -68,17 +68,17 @@ class Timer(object):
 
 class Grapher(object):
 	
-	def __init__():
+	def __init__(self):
 		self.data_to_graph = []
 
-	def add_data(data):
+	def add_data(self,data):
 		x = np.linspace(0,len(data)-1,len(data))
-     		plt.plot(x,np.array(output_stats[:]).squeeze())
-		#plt.title('Error over itterations data')
-		#plt.xlabel('Itteration number')
-		#plt.ylabel('Absolute error for that output value')
+     		plt.plot(x,np.array(data).squeeze())
+		plt.title('Error over itterations data')
+		plt.xlabel('Itteration number')
+		plt.ylabel('Absolute error for that output value')
 
-	def show()
+	def show(self):
 		plt.show()
 		
 
@@ -112,7 +112,7 @@ class Neural_Net(object):
 		self.output_size = net_output_size
 
 		# Network learning rate
-		self.learning_rate = 0.001
+		self.learning_rate = 1
 
 		# Network storage variables
 		self.network_input = []
@@ -275,7 +275,7 @@ class Neural_Net(object):
 		num_vals_comp_1 = self.network_hidden.shape[0] * self.network_hidden.shape[1]
 		
 		# Number of values for input vector
-		num_vals_comp_1 = num_vals_comp_1 + max(self.network_input.shape)
+		#num_vals_comp_1 = num_vals_comp_1 + max(self.network_input.shape)
 		
 		# Number of values for hidden vector intermediate output
 		num_vals_comp_1 = num_vals_comp_1 + self.network_hidden.shape[0]
@@ -513,7 +513,11 @@ class Neural_Net(object):
 
 	def forward_prop_cpu(self):
 		# Define matricies to do the verification computations
-			self.network_input_activation = np.ones(max(self.network_input.shape))
+			#print('network input: ',len(self.network_input))
+			try:
+				self.network_input_activation = np.ones(max(self.network_input.shape)).astype(np.float32)
+			except:
+				self.network_input_activation = np.ones(1).astype(np.float32)
 			Debug_output = self.network_hidden
 			Debug_output_1 = np.zeros(self.network_hidden.shape[0]).astype(np.float32)
 			Debug_output_2 = self.network_output_weights
@@ -526,8 +530,10 @@ class Neural_Net(object):
 			
 			# Multiply the input vector by the collums of the weight matrix
 			for i in range(0,len(self.network_input_activation)):
-				Debug_output[:,i] = Debug_output[:,i] * self.network_input[i]
-
+				try:
+					Debug_output[:,i] = Debug_output[:,i] * self.network_input[i]
+				except:
+					Debug_output[:,i] = Debug_output[:,i] * [self.network_input][i]
 			if (self.DEBUG_forward_prop_verification_in_progress):
 				print(Back.BLUE+'Verification: ' + Back.YELLOW +Fore.BLACK +' (2/6) '+ Style.RESET_ALL)	
 
@@ -576,10 +582,10 @@ class Neural_Net(object):
 			if(self.DEBUG_forward_prop_verification_in_progress):
 				return Debug_output_3
 
-	def gen_sin_training_data(data_size,data_type):
+	def gen_sin_training_data(self,data_size):
 
 		# Sin(x) training data
-		input_training_data = np.linspace(0,4*pi,data_size).astype(data_type)
+		input_training_data = np.linspace(0,4*np.pi,data_size).astype(np.float32)
 		output_training_data = np.sin(input_training_data)
 
 		return input_training_data,output_training_data
@@ -588,14 +594,15 @@ class Neural_Net(object):
 
 		
 		# Max number of training itterations.
-		max_itter = 100
+		max_itter = 1000
+		training_examples = 10
 
 		# Training graphing init
 		if (self.DEBUG_training_graph):
 			training_progress = []
 
 		# Generate training data
-		in_data,known_result = gen_sin_training_data(self.input_size,np.float32)
+		in_data,known_result = self.gen_sin_training_data(training_examples)
 			
 		# Training loop
 		for j in range(0,max_itter):
@@ -605,27 +612,46 @@ class Neural_Net(object):
 			for k in range(0,len(in_data)-1):
 
 				self.network_input = in_data[k]
+				#print('in_data',in_data[k])
 
 				self.forward_prop_cpu()
 
-				if (j % 10 == 0 or j == max_itter):
-					training_average_error[k] = abs(np.sum(self.network_output - known_result[k]))
+				#print('Network output: ',self.network_output)
+
+				#if (j % 10 == 0 or j == max_itter):
+				training_average_error.append(abs(np.sum(self.network_output - known_result[k])))
 
 				# Append the current errors onto the list of error values
-				if (self.DEBUG_training_graph):
-					output_stats = np.c_[output_stats,abs( 0.5*(self.network_output - known_result[k])**2)]
+				#if (self.DEBUG_training_graph):
+					#output_stats = np.c_[output_stats,abs( 0.5*(self.network_output - known_result[k])**2)]
 					#output_stats = np.c_[output_stats,abs(self.network_output - known_result[k])]
 
 				# Back Propigate the error 
 				output_weights_error = self.network_output * (1 - self.network_output) * (self.network_output - known_result[k])
 
-				hidden_wieghts_error = self.network_hidden_activity * (np.ones(self.network_hidden_activity.shape) - self.network_hidden_activity) * np.sum(output_weights_error * np.matrix(self.network_output_weights))
+				#print('Output error',output_weights_error)
+
+				hidden_weights_error = self.network_hidden_activity * (np.ones(self.network_hidden_activity.shape) - self.network_hidden_activity) * np.sum(output_weights_error * np.matrix(self.network_output_weights))
 				
+				#print('Hidden error',hidden_weights_error)
+
 				# Change the weights
 				self.network_output_weights = self.network_output_weights - self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity
-				self.network_hidden = self.network_hidden - self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation
+				self.network_hidden = self.network_hidden - self.learning_rate *np.matrix(hidden_weights_error).T*self.network_input_activation
 
-			training_progress[j] = np.mean(training_average_error)
+			print('(',j,'/',max_itter,')',' Current Error: ',np.mean(training_average_error))
+			training_progress.append(np.mean(training_average_error))
+
+		# Evaluate trained network
+		output_vals = []
+		for val in in_data:
+			self.network_input = val
+			self.forward_prop_cpu()
+			output_vals.append(self.network_output[0])
+		
+
+		print('\n   Network input     Known Output     Network Output     Difference')
+		print(np.c_[in_data,known_result,output_vals,abs(in_data - output_vals)])
 
 
 		# Plot the error for the first 30 outputs
@@ -638,11 +664,11 @@ class Neural_Net(object):
 			
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(1,50,1)
+n = Neural_Net(1,500,1)
 
 n.net_full_debug()
 
-n.load_input_data('random')
+#n.load_input_data('random')
 
 n.init_data_structure_32()
 
