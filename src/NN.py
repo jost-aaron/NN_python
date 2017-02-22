@@ -66,6 +66,22 @@ class Timer(object):
 	def reset(self):
 		self.t = time.time()		
 
+class Grapher(object):
+	
+	def __init__():
+		self.data_to_graph = []
+
+	def add_data(data):
+		x = np.linspace(0,len(data)-1,len(data))
+     		plt.plot(x,np.array(output_stats[:]).squeeze())
+		#plt.title('Error over itterations data')
+		#plt.xlabel('Itteration number')
+		#plt.ylabel('Absolute error for that output value')
+
+	def show()
+		plt.show()
+		
+
 # Neural Network Class
 class Neural_Net(object):
 	"""docstring for Neural_Net"""
@@ -560,84 +576,69 @@ class Neural_Net(object):
 			if(self.DEBUG_forward_prop_verification_in_progress):
 				return Debug_output_3
 
-	def cpu_train_prog_graph(self):
+	def gen_sin_training_data(data_size,data_type):
 
-		return 1
+		# Sin(x) training data
+		input_training_data = np.linspace(0,4*pi,data_size).astype(data_type)
+		output_training_data = np.sin(input_training_data)
 
+		return input_training_data,output_training_data
 
 	def train_grad_decent_cpu(self):
 
-		# Temportary until we have more training capabilities
-		#---------------------------------------------------
+		
 		# Max number of training itterations.
 		max_itter = 100
-		# Known test data to use
-		#known_result = np.zeros(len(self.network_output))
-		#for i in range(0,len(known_result)):
-		#	num = random.random()
-		#	known_result[i] = num
-		#known_result[0] = 1
-		known_result = np.linspace(0,1,self.output_size)
-		#---------------------------------------------------
-
-
 
 		# Training graphing init
 		if (self.DEBUG_training_graph):
-			output_stats = np.matrix([np.ones(self.output_size)]).T
-			print(output_stats.shape)
-			
+			training_progress = []
 
+		# Generate training data
+		in_data,known_result = gen_sin_training_data(self.input_size,np.float32)
+			
 		# Training loop
 		for j in range(0,max_itter):
 
-			self.forward_prop_cpu()
+			training_average_error = []
 
-			if (j % 10 == 0 or j == max_itter):
-				current_error = abs(np.sum(self.network_output - known_result))
-				print('Error at (',j+1,'/',max_itter,'): ',current_error)
+			for k in range(0,len(in_data)-1):
 
-			# Append the current errors onto the list of error values
-			if (self.DEBUG_training_graph):
-				output_stats = np.c_[output_stats,abs( 0.5*(self.network_output - known_result)**2)]
-				#output_stats = np.c_[output_stats,abs(self.network_output - known_result)]
+				self.network_input = in_data[k]
 
-			# Back Propigate the error 
-			output_weights_error = self.network_output * (1 - self.network_output) * (self.network_output - known_result)
+				self.forward_prop_cpu()
 
-			hidden_wieghts_error = self.network_hidden_activity * (np.ones(self.network_hidden_activity.shape) - self.network_hidden_activity) * np.sum(output_weights_error * np.matrix(self.network_output_weights))
-			
+				if (j % 10 == 0 or j == max_itter):
+					training_average_error[k] = abs(np.sum(self.network_output - known_result[k]))
 
-			#if (j % 1 == 0 or j == max_itter):
-			#	print('output change part 1',self.network_output[0:4])
-			#	print('output change part 2',(1-self.network_output)[0:4])
-			#	print('output change part 3',(self.network_output - known_result)[0:4])
-			#	print('Output change: \n',(self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity)[0:3,0:3])
-			#	print('Hidden change:\n',(self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation)[0:3,0:3])
-			#	print(''*30,'\n')
-			# Change the weights
-			self.network_output_weights = self.network_output_weights - self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity
-			self.network_hidden = self.network_hidden - self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation
+				# Append the current errors onto the list of error values
+				if (self.DEBUG_training_graph):
+					output_stats = np.c_[output_stats,abs( 0.5*(self.network_output - known_result[k])**2)]
+					#output_stats = np.c_[output_stats,abs(self.network_output - known_result[k])]
+
+				# Back Propigate the error 
+				output_weights_error = self.network_output * (1 - self.network_output) * (self.network_output - known_result[k])
+
+				hidden_wieghts_error = self.network_hidden_activity * (np.ones(self.network_hidden_activity.shape) - self.network_hidden_activity) * np.sum(output_weights_error * np.matrix(self.network_output_weights))
+				
+				# Change the weights
+				self.network_output_weights = self.network_output_weights - self.learning_rate *np.matrix(output_weights_error).T*self.network_hidden_activity
+				self.network_hidden = self.network_hidden - self.learning_rate *np.matrix(hidden_wieghts_error).T*self.network_input_activation
+
+			training_progress[j] = np.mean(training_average_error)
+
 
 		# Plot the error for the first 30 outputs
 		if (self.DEBUG_training_graph):
-			x = np.array(np.linspace(0,output_stats.shape[1],output_stats.shape[1]))
+			g = Grapher()
+			g.add_data(training_progress)
+			g.show()
 
-			max_output_show = 300
-			if (self.output_size > max_output_show):
-				num_lines = max_output_show
-			else:
-				num_lines = self.output_size
 
-			for i in range(0,num_lines):
-				plt.plot(x,np.array(output_stats[i,:]).squeeze())
-			plt.title('Error over itterations data')
-			plt.xlabel('Itteration number')
-			plt.ylabel('Absolute error for that output value')
-			plt.show()
+			
 
 # Initalize Network with Neural_Net(input_size,hidden_size,output_size)
-n = Neural_Net(50,50,100)
+n = Neural_Net(1,50,1)
 
 n.net_full_debug()
 
